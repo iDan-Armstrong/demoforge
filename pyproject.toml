@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "demoforge"
+version = "0.1.0"
+description = "Turn proprietary GIS projects into shareable demo data: relocate, anonymize, audit"
+readme = "README.md"
+requires-python = ">=3.9"  # ArcGIS Pro 3.x Pythons
+license = { text = "MIT" }
+authors = [{ name = "Daniel Armstrong" }]
+dependencies = []  # core is pure-Python by design; arcpy lives only in the adapter
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests", "adapters"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "SIM"]
