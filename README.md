@@ -39,6 +39,21 @@ carry     →  .lyrx layer files are CIM JSON keyed to field names; demoforge ke
 and symbology standards can themselves be client work product. The audit report
 makes your sign-off informed — it does not make it unnecessary.
 
+## Workflow
+
+1. **Extract (ArcGIS Pro):** add `toolbox/DemoForgeExtract.pyt` in Catalog and run
+   *Extract To Demoforge* — select map layers (local feature classes or hosted
+   feature layers) and/or sweep a whole geodatabase. It stages one GeoJSON per
+   layer plus a drafted `demoforge_job.json` with **suggested** field policies
+   (owner-ish fields → fake person, id-ish → format-preserving fake, system
+   fields → drop). Suggestions are drafts; you review every one.
+2. **Develop & test (local workbench):** `python devtool/server.py` →
+   http://localhost:8765 — a zero-dependency local web UI. Load a staged GeoJSON,
+   tune seed/target/rotation/policies/blocklist, forge, and see before/after
+   previews, join-safe faked attributes, and the leak-audit report live.
+3. **Forge for real:** the same config drives the pipeline over the full dataset;
+   output ships only after the audit report is signed off item by item.
+
 ## Status
 
 v1 core (this repo, pure Python, CI-tested): relocation planner, deterministic

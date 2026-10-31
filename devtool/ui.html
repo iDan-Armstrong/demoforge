@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>demoforge workbench</title>
+<style>
+  :root { --bg:#14171b; --panel:#1d2228; --fg:#e8eaed; --muted:#9aa0a6;
+          --accent:#4cc2ff; --fail:#ff6b57; --pass:#57d9a3; --border:#2b323a; }
+  html,body { margin:0; background:var(--bg); color:var(--fg);
+              font-family:"Segoe UI",system-ui,sans-serif; }
+  header { padding:14px 22px; border-bottom:1px solid var(--border); }
+  header h1 { font-size:17px; margin:0; } header span { color:var(--muted); font-size:12px; }
+  main { display:grid; grid-template-columns: 420px 1fr; gap:16px; padding:16px 22px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px;
+          padding:14px 16px; margin-bottom:14px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+       color:var(--muted); margin:0 0 10px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:8px 0 3px; }
+  input[type=text], textarea {
+    width:100%; box-sizing:border-box; background:#12151a; color:var(--fg);
+    border:1px solid var(--border); border-radius:6px; padding:7px 9px;
+    font-family:Consolas,monospace; font-size:12.5px;
+  }
+  textarea { resize:vertical; }
+  .row { display:flex; gap:8px; } .row > div { flex:1; }
+  button {
+    background:var(--accent); color:#06283a; font-weight:600; border:none;
+    border-radius:7px; padding:9px 18px; font-size:14px; cursor:pointer; margin-top:12px;
+  }
+  button:hover { filter:brightness(1.1); }
+  a.dl { color:var(--accent); font-size:13px; text-decoration:none; }
+  .stat-row { display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  .stat { flex:1; min-width:90px; background:#12151a; border-radius:8px;
+          padding:8px; text-align:center; }
+  .stat b { display:block; font-size:20px; } .stat span { font-size:11px; color:var(--muted); }
+  .stat.bad b { color:var(--fail); } .stat.good b { color:var(--pass); }
+  svg { width:100%; height:240px; background:#12151a; border-radius:8px; }
+  .finding { font-size:12.5px; padding:6px 9px; margin:5px 0; background:#12151a;
+             border-left:3px solid var(--fail); border-radius:4px; }
+  .finding b { color:var(--accent); }
+  #error { color:var(--fail); font-size:13px; white-space:pre-wrap; }
+  .ok-banner { color:var(--pass); font-size:14px; }
+  .hint { font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>demoforge workbench</h1>
+  <span>relocate · fake · audit — local dev harness (GeoJSON in, GeoJSON out)</span>
+</header>
+<main>
+  <section>
+    <div class="card">
+      <h2>Input</h2>
+      <label>GeoJSON FeatureCollection (paste, or load a file)</label>
+      <textarea id="geojson" rows="8" spellcheck="false"></textarea>
+      <input type="file" id="file" accept=".geojson,.json" style="margin-top:6px" />
+      <button type="button" id="sample" style="background:#2b323a;color:var(--fg)">Load sample</button>
+    </div>
+    <div class="card">
+      <h2>Forge config</h2>
+      <label>Seed (keep it private — it's the bridge back to real values)</label>
+      <input type="text" id="seed" value="change-me" />
+      <div class="row">
+        <div><label>Target bounds (minx,miny,maxx,maxy)</label>
+          <input type="text" id="target" value="-77.6, 4.0, -76.8, 4.8" /></div>
+        <div><label>Rotation °</label><input type="text" id="rotation" value="15" /></div>
+      </div>
+      <label>Field policies (JSON: field → keep | drop | fake:person |
+        fake:street_address | fake:place | fake:id_pattern | fake:redact)</label>
+      <textarea id="policies" rows="5" spellcheck="false">[
+  {"field": "OWNER", "action": "fake:person"},
+  {"field": "ADDRESS", "action": "fake:street_address"}
+]</textarea>
+      <label>Audit blocklist (one term per line: client names, towns, projects)</label>
+      <textarea id="blocklist" rows="3" spellcheck="false"></textarea>
+      <button type="button" id="run">Forge it</button>
+      <div class="hint">Everything runs locally against the installed demoforge
+        package — edit the source, re-run, see the change.</div>
+    </div>
+  </section>
+  <section>
+    <div class="card">
+      <h2>Result</h2>
+      <div id="error"></div>
+      <div class="stat-row" id="stats" hidden>
+        <div class="stat"><b id="sFeat">–</b><span>features</span></div>
+        <div class="stat"><b id="sFake">–</b><span>fields faked</span></div>
+        <div class="stat"><b id="sDrop">–</b><span>fields dropped</span></div>
+        <div class="stat" id="sFindWrap"><b id="sFind">–</b><span>audit findings</span></div>
+      </div>
+      <div class="row">
+        <div><h2>Before</h2><svg id="before" viewBox="0 0 400 240"></svg></div>
+        <div><h2>After</h2><svg id="after" viewBox="0 0 400 240"></svg></div>
+      </div>
+      <p><a class="dl" id="download" hidden download="forged.geojson">⬇ download forged.geojson</a></p>
+    </div>
+    <div class="card">
+      <h2>Leak audit</h2>
+      <div id="audit"><span class="hint">Run a forge to see the report.</span></div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+
+$("file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (f) $("geojson").value = await f.text();
+});
+
+$("sample").addEventListener("click", () => {
+  const feats = [];
+  for (let i = 0; i < 25; i++) {
+    feats.push({ type: "Feature",
+      geometry: { type: "Point",
+        coordinates: [500000 + (i % 5) * 2000, 3300000 + Math.floor(i / 5) * 1500] },
+      properties: { PID: "P-" + (100 + i), OWNER: "Owner " + i,
+        ADDRESS: i + " Real St", NOTES: i === 7 ? "call bob@acme.com re: AcmeCity" : "" } });
+  }
+  $("geojson").value = JSON.stringify({ type: "FeatureCollection", features: feats }, null, 1);
+  if (!$("blocklist").value) $("blocklist").value = "AcmeCity";
+});
+
+function drawPreview(svg, fc) {
+  const pts = [];
+  const walk = (c) => { if (!c || !c.length) return;
+    if (typeof c[0] === "number") pts.push(c); else c.forEach(walk); };
+  (fc.features || []).forEach((f) => f.geometry && walk(f.geometry.coordinates));
+  if (!pts.length) { svg.innerHTML = ""; return; }
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const [minx, maxx] = [Math.min(...xs), Math.max(...xs)];
+  const [miny, maxy] = [Math.min(...ys), Math.max(...ys)];
+  const sx = 360 / Math.max(maxx - minx, 1e-9), sy = 200 / Math.max(maxy - miny, 1e-9);
+  const s = Math.min(sx, sy);
+  svg.innerHTML = pts.map((p) => {
+    const x = 20 + (p[0] - minx) * s, y = 220 - (p[1] - miny) * s;
+    return `<circle cx="${x}" cy="${y}" r="3" fill="#4cc2ff" opacity="0.85"/>`;
+  }).join("");
+}
+
+$("run").addEventListener("click", async () => {
+  $("error").textContent = "";
+  let geojson, policies;
+  try { geojson = JSON.parse($("geojson").value); }
+  catch { $("error").textContent = "Input is not valid JSON."; return; }
+  try { policies = JSON.parse($("policies").value); }
+  catch { $("error").textContent = "Policies are not valid JSON."; return; }
+  const config = {
+    seed: $("seed").value,
+    target_bounds: $("target").value.split(",").map(Number),
+    rotation_deg: Number($("rotation").value) || 0,
+    policies,
+    blocklist: $("blocklist").value.split("\n").map((s) => s.trim()).filter(Boolean),
+  };
+  const resp = await fetch("/api/forge", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ geojson, config }) });
+  const data = await resp.json();
+  if (!resp.ok) { $("error").textContent = data.error || "forge failed"; return; }
+
+  $("stats").hidden = false;
+  $("sFeat").textContent = data.stats.features;
+  $("sFake").textContent = data.stats.fields_faked;
+  $("sDrop").textContent = data.stats.fields_dropped;
+  $("sFind").textContent = data.stats.audit_findings;
+  $("sFindWrap").className = "stat " + (data.stats.audit_findings ? "bad" : "good");
+
+  drawPreview($("before"), geojson);
+  drawPreview($("after"), data.geojson);
+
+  const blob = new Blob([JSON.stringify(data.geojson)], { type: "application/geo+json" });
+  const a = $("download"); a.href = URL.createObjectURL(blob); a.hidden = false;
+
+  $("audit").innerHTML = data.findings.length
+    ? data.findings.map((f) =>
+        `<div class="finding"><b>${f.record}</b> · ${f.field} · [${f.kind}] ${f.excerpt
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`).join("")
+    : '<div class="ok-banner">CLEAN — no findings. Still read the output with human eyes.</div>';
+});
+</script>
+</body>
+</html>
