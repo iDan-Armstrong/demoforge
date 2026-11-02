@@ -14,7 +14,13 @@ recreating layers and datasets by hand.
 relocate  →  one affine transform (translate/rotate/scale) moves the whole project
              to a fictional AOI. Affine on purpose: every spatial relationship —
              shared parcel edges, pipe-to-manhole connectivity, containment —
-             survives exactly. Jitter breaks topology; v1 refuses to.
+             survives exactly. Per-vertex jitter breaks topology; demoforge won't.
+             A pure move keeps the *shape* exact, so a distinctive outline is still
+             recognizable — so `scramble` (0–100%, seed-driven) adds anisotropic
+             scale + shear to distort proportions until the shape no longer matches,
+             staying a single affine map so topology is still exact. Honest limit:
+             it's a global linear map, so it defeats casual identification, not a
+             determined analyst; non-linear morphing is the v2 direction.
 
 fake      →  deterministic attribute anonymization: HMAC(seed, value) drives the
              fakes, so the same real ID maps to the same fake ID everywhere and

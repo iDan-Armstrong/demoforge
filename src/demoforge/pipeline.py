@@ -60,6 +60,7 @@ def forge_geojson(
     seed: str,
     target_bounds: Bounds,
     rotation_deg: float = 0.0,
+    scramble: float = 0.0,
     policies: list[FieldPolicy] | None = None,
     blocklist: list[str] | None = None,
 ) -> ForgeResult:
@@ -68,7 +69,8 @@ def forge_geojson(
         raise ValueError("FeatureCollection has no features")
 
     source = _collect_bounds(features)
-    transform = plan_relocation(source, target_bounds, rotation_deg)
+    transform = plan_relocation(source, target_bounds, rotation_deg,
+                                scramble=scramble, seed=seed)
     faker = Faker(seed)
     policies = policies or []
 
@@ -101,5 +103,6 @@ def forge_geojson(
             "fields_faked": faked,
             "fields_dropped": dropped,
             "audit_findings": len(findings),
+            "scramble": scramble,
         },
     )

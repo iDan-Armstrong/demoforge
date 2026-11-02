@@ -134,6 +134,7 @@ class Handler(BaseHTTPRequestHandler):
             seed=cfg["seed"],
             target_bounds=tuple(cfg["target_bounds"]),
             rotation_deg=float(cfg.get("rotation_deg", 0)),
+            scramble=float(cfg.get("scramble", 0)),
             policies=policies,
             blocklist=cfg.get("blocklist", []),
         )

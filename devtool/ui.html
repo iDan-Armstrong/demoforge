@@ -119,6 +119,10 @@
           <input type="text" id="target" value="-77.6, 4.0, -76.8, 4.8" /></div>
         <div><label>Rotation °</label><input type="text" id="rotation" value="15" /></div>
       </div>
+      <label>Scramble shape <span id="scrambleVal" class="hint">0%</span>
+        <span class="hint">— distorts proportions so the outline stops matching (topology-safe)</span></label>
+      <input type="range" id="scramble" min="0" max="100" value="0" step="5"
+             style="width:100%" />
       <label>Field policies (JSON: field → keep | drop | fake:person |
         fake:street_address | fake:place | fake:id_pattern | fake:redact)</label>
       <textarea id="policies" rows="5" spellcheck="false">[
@@ -276,6 +280,9 @@ document.querySelectorAll("nav button").forEach((b) => {
 
 /* ---------------- workbench ---------------- */
 $("saveAs").addEventListener("click", saveForged);
+$("scramble").addEventListener("input", () => {
+  $("scrambleVal").textContent = $("scramble").value + "%";
+});
 
 $("file").addEventListener("change", async (e) => {
   const f = e.target.files[0];
@@ -327,6 +334,7 @@ $("run").addEventListener("click", async () => {
     seed: $("seed").value,
     target_bounds: $("target").value.split(",").map(Number),
     rotation_deg: Number($("rotation").value) || 0,
+    scramble: (Number($("scramble").value) || 0) / 100,
     policies,
     blocklist: $("blocklist").value.split("\n").map((s) => s.trim()).filter(Boolean),
   };

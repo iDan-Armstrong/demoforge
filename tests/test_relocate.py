@@ -60,3 +60,38 @@ def test_nested_coords_and_z_preserved():
 def test_degenerate_bounds_rejected():
     with pytest.raises(ValueError):
         plan_relocation((0, 0, 0, 10), TARGET)
+
+
+def test_scramble_changes_the_shape():
+    plain = plan_relocation(SOURCE, TARGET, rotation_deg=10)
+    scrambled = plan_relocation(SOURCE, TARGET, rotation_deg=10,
+                                scramble=0.8, seed="k")
+    p = (505000, 3304000)
+    assert dist(plain.apply(*p), scrambled.apply(*p)) > 1e-6  # output moved
+
+
+def test_scramble_preserves_topology_is_affine():
+    """Scramble must stay a single affine map: midpoints map to midpoints,
+    so shared edges and connectivity still hold."""
+    t = plan_relocation(SOURCE, TARGET, scramble=1.0, seed="k")
+    a, b = (501000.0, 3301000.0), (509000.0, 3305000.0)
+    mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+    ta, tb, tmid = t.apply(*a), t.apply(*b), t.apply(*mid)
+    expect = ((ta[0] + tb[0]) / 2, (ta[1] + tb[1]) / 2)
+    assert dist(tmid, expect) < 1e-6
+
+
+def test_scramble_is_deterministic_in_seed():
+    t1 = plan_relocation(SOURCE, TARGET, scramble=0.5, seed="k")
+    t2 = plan_relocation(SOURCE, TARGET, scramble=0.5, seed="k")
+    t3 = plan_relocation(SOURCE, TARGET, scramble=0.5, seed="other")
+    p = (501000, 3301000)  # off-center: the distortion fixes only the center
+    assert t1.apply(*p) == t2.apply(*p)               # same seed -> same
+    assert dist(t1.apply(*p), t3.apply(*p)) > 1e-6    # different seed -> different
+
+
+def test_scramble_zero_is_the_plain_transform():
+    plain = plan_relocation(SOURCE, TARGET, rotation_deg=10)
+    zero = plan_relocation(SOURCE, TARGET, rotation_deg=10, scramble=0.0, seed="k")
+    p = (505000, 3304000)
+    assert zero.apply(*p) == plain.apply(*p)
