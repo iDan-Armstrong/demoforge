@@ -155,8 +155,19 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write("  " + fmt % args + "\n")
 
 
+class WorkbenchServer(HTTPServer):
+    # fail loudly if another workbench is already on the port, instead of
+    # two servers silently racing (Windows lets reused sockets double-bind)
+    allow_reuse_address = False
+
+
 def main() -> None:
-    server = HTTPServer((HOST, PORT), Handler)
+    try:
+        server = WorkbenchServer((HOST, PORT), Handler)
+    except OSError:
+        print(f"port {PORT} is busy: another demoforge workbench is already running.")
+        print("Close the other demoforge window, then start this one again.")
+        sys.exit(1)
     print(f"demoforge dev harness: http://{HOST}:{PORT}  (Ctrl+C to stop)")
     try:
         server.serve_forever()
