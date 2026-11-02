@@ -146,7 +146,12 @@
         <div><h2>Before</h2><svg id="before" viewBox="0 0 400 240"></svg></div>
         <div><h2>After</h2><svg id="after" viewBox="0 0 400 240"></svg></div>
       </div>
-      <p><a class="dl" id="download" hidden download="forged.geojson">⬇ download forged.geojson</a></p>
+      <p style="margin-bottom:0">
+        <button type="button" id="saveAs" class="mini" hidden>💾 Save forged GeoJSON…</button>
+        <a class="dl" id="download" hidden download="forged.geojson"
+           style="margin-left:4px">⬇ download forged.geojson</a>
+        <span id="saveMsg" class="ok" style="margin-left:8px"></span>
+      </p>
     </div>
     <div class="card">
       <h2>Leak audit</h2>
@@ -223,6 +228,41 @@ const api = (url, body) => fetch(url, body === undefined ? undefined : {
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
   .replace(/"/g, "&quot;");
 
+// what was last forged, and the name of the layer it came from (for filenames)
+let lastForged = null;
+let loadedLayerName = "";
+
+function suggestedForgedName() {
+  const base = (loadedLayerName || "forged")
+    .replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "forged";
+  return `${base}_demo.geojson`;
+}
+
+/* Save As with a folder picker where supported (so users drop each forged
+   layer straight into its demo folder), else the plain blob download. */
+async function saveForged() {
+  if (!lastForged) return;
+  const blob = new Blob([lastForged.text], { type: "application/geo+json" });
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: lastForged.name,
+      types: [{ description: "GeoJSON",
+                accept: { "application/geo+json": [".geojson", ".json"] } }],
+    });
+    const w = await handle.createWritable();
+    await w.write(blob);
+    await w.close();
+    const note = $("saveMsg");
+    if (note) { note.textContent = "saved ✓"; setTimeout(() => (note.textContent = ""), 2500); }
+  } catch (err) {
+    if (err && err.name === "AbortError") return;  // user cancelled the dialog
+    // picker failed — fall back to a normal download
+    const a = $("download");
+    a.href = URL.createObjectURL(blob); a.download = lastForged.name;
+    a.hidden = false; a.click();
+  }
+}
+
 /* ---------------- menu ---------------- */
 document.querySelectorAll("nav button").forEach((b) => {
   b.addEventListener("click", () => {
@@ -235,12 +275,18 @@ document.querySelectorAll("nav button").forEach((b) => {
 });
 
 /* ---------------- workbench ---------------- */
+$("saveAs").addEventListener("click", saveForged);
+
 $("file").addEventListener("change", async (e) => {
   const f = e.target.files[0];
-  if (f) $("geojson").value = await f.text();
+  if (f) {
+    $("geojson").value = await f.text();
+    loadedLayerName = f.name.replace(/\.(geo)?json$/i, "");  // name the output after it
+  }
 });
 
 $("sample").addEventListener("click", () => {
+  loadedLayerName = "sample";
   const feats = [];
   for (let i = 0; i < 25; i++) {
     feats.push({ type: "Feature",
@@ -298,8 +344,17 @@ $("run").addEventListener("click", async () => {
   drawPreview($("before"), geojson);
   drawPreview($("after"), data.geojson);
 
-  const blob = new Blob([JSON.stringify(data.geojson)], { type: "application/geo+json" });
-  const a = $("download"); a.href = URL.createObjectURL(blob); a.hidden = false;
+  // keep the forged result + a sensible filename for either save path
+  lastForged = { text: JSON.stringify(data.geojson), name: suggestedForgedName() };
+  const blob = new Blob([lastForged.text], { type: "application/geo+json" });
+  const a = $("download");
+  a.href = URL.createObjectURL(blob);
+  a.download = lastForged.name;
+  // prefer the folder-picker (Save As) where the browser supports it (localhost
+  // is a secure context, so Chromium does); fall back to the plain download
+  const canPick = typeof window.showSaveFilePicker === "function";
+  $("saveAs").hidden = !canPick;
+  a.hidden = canPick;  // show the picker button, or the link as fallback
 
   $("audit").innerHTML = data.findings.length
     ? data.findings.map((f) =>
@@ -511,6 +566,7 @@ async function loadLayerIntoWorkbench(url, btn) {
       return;
     }
     $("geojson").value = JSON.stringify(data.geojson);
+    loadedLayerName = data.name || "";  // used to name the forged file
     $("policies").value = JSON.stringify(
       data.policies.map((p) => ({ field: p.field, action: p.action, why: p.reason })), null, 1);
     // jump to the Workbench with a note on what landed and what to set
