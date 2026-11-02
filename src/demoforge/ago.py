@@ -16,6 +16,7 @@ own message on failure. Nothing here logs or returns the credential.
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -191,12 +192,19 @@ def search_items(portal: str, token: str, orgid: str) -> list[dict]:
     return _search_page(portal, token, f"orgid:{orgid}")["items"]
 
 
+def _search_terms(text: str) -> list[str]:
+    """User search text → safe title-prefix tokens (no AGO query injection)."""
+    cleaned = re.sub(r"[^0-9A-Za-z _-]+", " ", text or "")
+    return [t for t in cleaned.split() if t]
+
+
 def list_content(portal: str, token: str, start: int = 1, num: int = 100,
-                 layers_only: bool = False) -> dict:
+                 layers_only: bool = False, text: str = "") -> dict:
     """One page of everything this connection can reach.
 
     Routes by whether the token has a user (owner search) or not (org
-    search), optionally narrowing to layer-bearing service types. Returns
+    search), optionally narrowing to layer-bearing service types and/or a
+    title search. Returns
     {'scope', 'portal_name', 'total', 'start', 'num', 'nextStart', 'items'}.
     """
     self_doc = _get(_rest(portal) + "/portals/self", {"token": token})
@@ -204,13 +212,15 @@ def list_content(portal: str, token: str, start: int = 1, num: int = 100,
     username = user.get("username")
     portal_name = self_doc.get("name", "")
     if username:
-        scope, query = f"{username}'s content", f"owner:{username}"
+        scope, clauses = f"{username}'s content", [f"owner:{username}"]
     else:
-        scope, query = "organization", f"orgid:{self_doc.get('id', '')}"
+        scope, clauses = "organization", [f"orgid:{self_doc.get('id', '')}"]
     if layers_only:
-        types = " OR ".join(f'type:"{t}"' for t in SERVICE_TYPES)
-        query = f"{query} AND ({types})"
-    page = _search_page(portal, token, query, start, num)
+        clauses.append("(" + " OR ".join(f'type:"{t}"' for t in SERVICE_TYPES) + ")")
+    terms = _search_terms(text)
+    if terms:
+        clauses.append("(" + " AND ".join(f"title:{t}*" for t in terms) + ")")
+    page = _search_page(portal, token, " AND ".join(clauses), start, num)
     page.update(scope=scope, portal_name=portal_name)
     return page
 

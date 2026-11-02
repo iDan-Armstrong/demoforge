@@ -144,6 +144,30 @@ def test_list_content_unfiltered_has_no_type_clause(monkeypatch):
     assert portal.calls[-1][1]["q"] == "owner:dan"  # no AND (type:...)
 
 
+def test_list_content_text_search_adds_title_prefixes(monkeypatch):
+    portal = FakePortal(monkeypatch, {
+        "/portals/self": {"name": "T", "id": "ORG", "user": {"username": "dan"}},
+        "/search": {"results": [], "total": 0, "start": 1, "nextStart": -1},
+    })
+    ago.list_content("https://www.arcgis.com", "TOK",
+                     text="Address Points", layers_only=True)
+    q = portal.calls[-1][1]["q"]
+    assert "owner:dan" in q and 'type:"Feature Service"' in q
+    assert "title:Address*" in q and "title:Points*" in q
+
+
+def test_search_text_is_sanitized_against_injection(monkeypatch):
+    portal = FakePortal(monkeypatch, {
+        "/portals/self": {"name": "T", "id": "ORG", "user": {"username": "dan"}},
+        "/search": {"results": [], "total": 0, "start": 1, "nextStart": -1},
+    })
+    ago.list_content("https://www.arcgis.com", "TOK", text='road") OR owner:someoneelse')
+    q = portal.calls[-1][1]["q"]
+    assert '"' not in q  # user quotes/parens stripped, no query escape
+    assert "title:road*" in q and "title:OR*" in q  # tokens kept, harmless as prefixes
+    assert "owner:someoneelse" not in q
+
+
 def test_list_content_falls_back_to_org_search(monkeypatch):
     portal = FakePortal(monkeypatch, {
         "/portals/self": {"name": "Town Org", "id": "ORG"},  # no user (api-key)

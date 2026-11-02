@@ -167,6 +167,7 @@ class Handler(BaseHTTPRequestHandler):
             start=int(payload.get("start", 1)),
             num=int(payload.get("num", 100)),
             layers_only=bool(payload.get("layers_only", False)),
+            text=payload.get("text", ""),
         )
         self._json(200, result)
 

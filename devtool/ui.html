@@ -172,7 +172,9 @@
     <div class="card" id="browseCard" hidden>
       <h2 id="browseTitle">Contents</h2>
       <div class="filter-row">
-        <label style="margin:0"><input type="checkbox" id="layersOnly" checked>
+        <input type="text" id="browseSearch" placeholder="filter by name…"
+               autocomplete="off" style="max-width:220px" />
+        <label style="margin:0;white-space:nowrap"><input type="checkbox" id="layersOnly" checked>
           layer services only</label>
         <span id="browseCount" class="hint"></span>
         <span style="margin-left:auto"></span>
@@ -396,6 +398,7 @@ const BROWSE_NUM = 100;  // AGO /search caps a page at 100
 function browseConnection(name) {
   browseName = name;
   browseStart = 1;
+  $("browseSearch").value = "";
   $("browseCard").hidden = false;
   $("browseTitle").textContent = `Contents — ${name}`;
   $("browseCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -404,11 +407,12 @@ function browseConnection(name) {
 
 async function fetchBrowsePage() {
   const only = $("layersOnly").checked;
+  const text = $("browseSearch").value.trim();
   $("browseStatus").innerHTML = "loading…";
   $("browseList").innerHTML = "";
   $("pagePrev").disabled = $("pageNext").disabled = true;
   const resp = await api("/api/vault/content",
-    { name: browseName, start: browseStart, num: BROWSE_NUM, layers_only: only });
+    { name: browseName, start: browseStart, num: BROWSE_NUM, layers_only: only, text });
   const data = await resp.json();
   if (!resp.ok) {
     $("browseStatus").innerHTML = `<span class="err">${esc(data.error)}</span>`;
@@ -428,6 +432,14 @@ async function fetchBrowsePage() {
 }
 
 $("layersOnly").addEventListener("change", () => { browseStart = 1; fetchBrowsePage(); });
+let searchTimer = null;
+$("browseSearch").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { browseStart = 1; fetchBrowsePage(); }, 350);
+});
+$("browseSearch").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { clearTimeout(searchTimer); browseStart = 1; fetchBrowsePage(); }
+});
 $("pagePrev").addEventListener("click", () => {
   browseStart = Math.max(1, browseStart - BROWSE_NUM); fetchBrowsePage();
 });
