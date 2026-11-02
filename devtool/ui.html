@@ -40,6 +40,7 @@
   button:hover { filter:brightness(1.1); }
   button.ghost { background:#2b323a; color:var(--fg); }
   button.mini { padding:4px 10px; font-size:12px; margin:0 0 0 6px; }
+  button:disabled { opacity:.4; cursor:default; filter:none; }
   button.danger { background:transparent; color:var(--fail);
                   border:1px solid var(--fail); }
   a.dl { color:var(--accent); font-size:13px; text-decoration:none; }
@@ -170,6 +171,14 @@
     </div>
     <div class="card" id="browseCard" hidden>
       <h2 id="browseTitle">Contents</h2>
+      <div class="filter-row">
+        <label style="margin:0"><input type="checkbox" id="layersOnly" checked>
+          layer services only</label>
+        <span id="browseCount" class="hint"></span>
+        <span style="margin-left:auto"></span>
+        <button type="button" id="pagePrev" class="mini ghost">‹ Prev</button>
+        <button type="button" id="pageNext" class="mini ghost">Next ›</button>
+      </div>
       <div id="browseStatus" class="hint"></div>
       <div id="browseList"></div>
     </div>
@@ -378,38 +387,60 @@ $("connRows").addEventListener("click", async (e) => {
   }
 });
 
-/* ---- content browser ---- */
+/* ---- content browser (server-side paging) ---- */
 let browseItems = [];
 let browseName = "";
+let browseStart = 1;
+const BROWSE_NUM = 100;  // AGO /search caps a page at 100
 
-async function browseConnection(name) {
+function browseConnection(name) {
   browseName = name;
+  browseStart = 1;
   $("browseCard").hidden = false;
   $("browseTitle").textContent = `Contents — ${name}`;
+  $("browseCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  fetchBrowsePage();
+}
+
+async function fetchBrowsePage() {
+  const only = $("layersOnly").checked;
   $("browseStatus").innerHTML = "loading…";
   $("browseList").innerHTML = "";
-  $("browseCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
-  const resp = await api("/api/vault/content", { name });
+  $("pagePrev").disabled = $("pageNext").disabled = true;
+  const resp = await api("/api/vault/content",
+    { name: browseName, start: browseStart, num: BROWSE_NUM, layers_only: only });
   const data = await resp.json();
-  if (!resp.ok) { $("browseStatus").innerHTML = `<span class="err">${esc(data.error)}</span>`; return; }
+  if (!resp.ok) {
+    $("browseStatus").innerHTML = `<span class="err">${esc(data.error)}</span>`;
+    $("browseCount").textContent = "";
+    return;
+  }
   browseItems = data.items;
-  const layers = browseItems.filter((i) => i.is_layer).length;
-  $("browseStatus").innerHTML =
-    `${browseItems.length} items in ${esc(data.scope)} on ${esc(data.portal_name)} — `
-    + `<b>${layers}</b> layer service${layers === 1 ? "" : "s"}. `
-    + `<label style="display:inline"><input type="checkbox" id="layersOnly" checked> `
-    + `layer services only</label>`;
-  $("layersOnly").addEventListener("change", renderBrowse);
+  browseStart = data.start;  // trust the server's echoed start
+  const end = data.start - 1 + data.items.length;
+  $("browseStatus").innerHTML = `${esc(data.scope)} on ${esc(data.portal_name)}`;
+  $("browseCount").textContent = data.total
+    ? `showing ${data.start}–${end} of ${data.total}` : "no items";
+  $("pagePrev").disabled = data.start <= 1;
+  $("pageNext").disabled =
+    data.nextStart === -1 || data.nextStart === 0 || end >= data.total;
   renderBrowse();
 }
 
+$("layersOnly").addEventListener("change", () => { browseStart = 1; fetchBrowsePage(); });
+$("pagePrev").addEventListener("click", () => {
+  browseStart = Math.max(1, browseStart - BROWSE_NUM); fetchBrowsePage();
+});
+$("pageNext").addEventListener("click", () => {
+  browseStart += BROWSE_NUM; fetchBrowsePage();
+});
+
 function renderBrowse() {
-  const only = $("layersOnly")?.checked;
-  const rows = browseItems.filter((i) => !only || i.is_layer);
-  if (!rows.length) { $("browseList").innerHTML =
-    '<div class="hint">Nothing to show. Uncheck the filter to see all item types.</div>'; return; }
-  $("browseList").innerHTML = rows.map((it, idx) => `
-    <div class="item" data-idx="${browseItems.indexOf(it)}">
+  if (!browseItems.length) {
+    $("browseList").innerHTML = '<div class="hint">No items on this page.</div>'; return;
+  }
+  $("browseList").innerHTML = browseItems.map((it, idx) => `
+    <div class="item" data-idx="${idx}">
       <div class="item-head">
         <span class="item-title">${esc(it.title)}</span>
         <span class="type-badge ${it.is_layer ? "layer" : ""}">${esc(it.type)}</span>

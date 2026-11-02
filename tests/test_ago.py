@@ -104,7 +104,7 @@ def test_list_user_items_uses_owner_search(monkeypatch):
                  "url": "https://x/FeatureServer", "owner": "dan"},
                 {"id": "2", "title": "A Web Map", "type": "Web Map"},
             ],
-            "nextStart": -1},
+            "total": 2, "start": 1, "nextStart": -1},
     })
     items = ago.list_user_items("https://www.arcgis.com", "TOK", "dan")
     titles = {i["title"]: i for i in items}
@@ -116,25 +116,32 @@ def test_list_user_items_uses_owner_search(monkeypatch):
     assert portal.calls[0][1]["q"] == "owner:dan"
 
 
-def test_search_stops_at_page_cap(monkeypatch):
-    # a server that never returns nextStart=-1 must still terminate
+def test_list_content_is_paged(monkeypatch):
     portal = FakePortal(monkeypatch, {
-        "/search": {"results": [{"id": "x", "title": "t", "type": "Feature Service"}],
-                    "nextStart": 999},  # always "more"
-    })
-    ago.list_user_items("https://www.arcgis.com", "TOK", "dan")
-    assert len(portal.calls) == 20  # hard page cap, no infinite loop
-
-
-def test_list_content_routes_to_user_content(monkeypatch):
-    FakePortal(monkeypatch, {
         "/portals/self": {"name": "Town Org", "id": "ORG",
                           "user": {"username": "dan"}},
-        "/search": {"results": [], "nextStart": -1},
+        "/search": {"results": [{"id": "1", "title": "FS", "type": "Feature Service"}],
+                    "total": 467, "start": 101, "num": 100, "nextStart": 201},
     })
-    out = ago.list_content("https://www.arcgis.com", "TOK")
+    out = ago.list_content("https://www.arcgis.com", "TOK",
+                           start=101, num=100, layers_only=True)
     assert out["scope"] == "dan's content"
-    assert out["portal_name"] == "Town Org"
+    assert out["total"] == 467 and out["start"] == 101 and out["nextStart"] == 201
+    assert out["items"][0]["title"] == "FS"
+    # layers_only narrows the query to service types, paged from the right offset
+    q = portal.calls[-1][1]
+    assert q["start"] == "101" and 'type:"Feature Service"' in q["q"]
+    assert "owner:dan" in q["q"]
+
+
+def test_list_content_unfiltered_has_no_type_clause(monkeypatch):
+    portal = FakePortal(monkeypatch, {
+        "/portals/self": {"name": "Town Org", "id": "ORG",
+                          "user": {"username": "dan"}},
+        "/search": {"results": [], "total": 0, "start": 1, "nextStart": -1},
+    })
+    ago.list_content("https://www.arcgis.com", "TOK")
+    assert portal.calls[-1][1]["q"] == "owner:dan"  # no AND (type:...)
 
 
 def test_list_content_falls_back_to_org_search(monkeypatch):

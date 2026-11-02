@@ -160,52 +160,59 @@ def _norm_item(it: dict) -> dict:
     }
 
 
-def _search(portal: str, token: str, query: str, cap: int) -> list[dict]:
-    """Paged /search — one bulk call per 100 items, hard-capped.
-
-    One query (``owner:<user>`` or ``orgid:<id>``) beats walking every
-    folder: a few calls total instead of one per folder. An authenticated
-    owner search returns the user's own private items too.
-    """
-    url = _rest(portal) + "/search"
-    out: list[dict] = []
-    start = 1
-    pages = 0
-    while start not in (-1, 0, None) and len(out) < cap and pages < 20:
-        doc = _get(url, {"token": token, "q": query, "num": 100,
-                         "start": start, "sortField": "title"})
-        out.extend(doc.get("results", []))
-        start = doc.get("nextStart", -1)
-        pages += 1
-    return [_norm_item(it) for it in out]
+# the service types a "layer services only" filter keeps — used both to flag
+# items and to narrow the server-side search query.
+SERVICE_TYPES = ("Feature Service", "Map Service", "Image Service",
+                 "Vector Tile Service", "WFS", "Feature Collection")
 
 
-def list_user_items(portal: str, token: str, username: str,
-                    cap: int = 400) -> list[dict]:
-    """Items the signed-in user owns — one bulk owner-search, not a folder walk."""
-    return _search(portal, token, f"owner:{username}", cap)
+def _search_page(portal: str, token: str, query: str,
+                 start: int = 1, num: int = 100) -> dict:
+    """One page of /search. Returns items + the paging cursor the UI needs."""
+    doc = _get(_rest(portal) + "/search", {
+        "token": token, "q": query, "num": min(num, 100),
+        "start": max(start, 1), "sortField": "title",
+    })
+    return {
+        "items": [_norm_item(it) for it in doc.get("results", [])],
+        "total": doc.get("total", 0),
+        "start": doc.get("start", start),
+        "num": doc.get("num", num),
+        "nextStart": doc.get("nextStart", -1),
+    }
 
 
-def search_items(portal: str, token: str, orgid: str, cap: int = 300) -> list[dict]:
-    """Org-wide item search — the fallback when a token has no user (api-key/app)."""
-    return _search(portal, token, f"orgid:{orgid}", cap)
+def list_user_items(portal: str, token: str, username: str) -> list[dict]:
+    """All of the user's items (first page) — kept for callers that want a list."""
+    return _search_page(portal, token, f"owner:{username}")["items"]
 
 
-def list_content(portal: str, token: str) -> dict:
-    """Everything this connection can reach. Routes by whether the token has a user.
+def search_items(portal: str, token: str, orgid: str) -> list[dict]:
+    return _search_page(portal, token, f"orgid:{orgid}")["items"]
 
-    Returns {'scope', 'portal_name', 'items': [...]}.
+
+def list_content(portal: str, token: str, start: int = 1, num: int = 100,
+                 layers_only: bool = False) -> dict:
+    """One page of everything this connection can reach.
+
+    Routes by whether the token has a user (owner search) or not (org
+    search), optionally narrowing to layer-bearing service types. Returns
+    {'scope', 'portal_name', 'total', 'start', 'num', 'nextStart', 'items'}.
     """
     self_doc = _get(_rest(portal) + "/portals/self", {"token": token})
     user = self_doc.get("user") or {}
     username = user.get("username")
     portal_name = self_doc.get("name", "")
     if username:
-        return {"scope": f"{username}'s content", "portal_name": portal_name,
-                "items": list_user_items(portal, token, username)}
-    orgid = self_doc.get("id", "")
-    return {"scope": "organization", "portal_name": portal_name,
-            "items": search_items(portal, token, orgid)}
+        scope, query = f"{username}'s content", f"owner:{username}"
+    else:
+        scope, query = "organization", f"orgid:{self_doc.get('id', '')}"
+    if layers_only:
+        types = " OR ".join(f'type:"{t}"' for t in SERVICE_TYPES)
+        query = f"{query} AND ({types})"
+    page = _search_page(portal, token, query, start, num)
+    page.update(scope=scope, portal_name=portal_name)
+    return page
 
 
 def list_service_layers(service_url: str, token: str | None = None) -> list[dict]:

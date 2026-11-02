@@ -162,7 +162,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def _vault_content(self, payload: dict) -> None:
         meta, token = self._token_for(payload["name"])
-        result = ago.list_content(meta["portal"], token)
+        result = ago.list_content(
+            meta["portal"], token,
+            start=int(payload.get("start", 1)),
+            num=int(payload.get("num", 100)),
+            layers_only=bool(payload.get("layers_only", False)),
+        )
         self._json(200, result)
 
     def _vault_layers(self, payload: dict) -> None:
