@@ -16,12 +16,24 @@ always a separate folder.
 
 import json
 import os
+import sys
 
 import arcpy
 
-from demoforge import ago, hosted
-from demoforge.staging import build_job_config
-from demoforge.vault import Vault, VaultError
+# Zero-install import: use a pip-installed demoforge if there is one, else
+# fall back to the src/ folder shipped next to this toolbox in the repo
+# (one level up). So a new user just adds this .pyt in Catalog and runs it —
+# no conda clone, no pip, no Pro restart — and it still honors a real install.
+try:
+    import demoforge  # noqa: F401
+except ImportError:
+    _SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
+    if _SRC not in sys.path:
+        sys.path.insert(0, _SRC)
+
+from demoforge import ago, hosted  # noqa: E402
+from demoforge.staging import build_job_config  # noqa: E402
+from demoforge.vault import Vault, VaultError  # noqa: E402
 
 
 class Toolbox:

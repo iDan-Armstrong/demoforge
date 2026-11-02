@@ -41,7 +41,11 @@ makes your sign-off informed — it does not make it unnecessary.
 
 ## Workflow
 
-1. **Extract (ArcGIS Pro):** add `toolbox/DemoForgeExtract.pyt` in Catalog and run
+1. **Extract (ArcGIS Pro):** in the Catalog pane, right-click **Toolboxes →
+   Add Toolbox** and pick `toolbox/DemoForgeExtract.pyt` from your clone — no
+   install needed. The toolbox adds its own `src/` folder to the path when it
+   loads, so it runs in the stock `arcgispro-py3` environment (if you'd rather
+   `pip install -e .` into a cloned environment, it uses that instead). Run
    *Extract To Demoforge* — select map layers (local feature classes or hosted
    feature layers), sweep a whole geodatabase, and/or paste hosted layer URLs
    authenticated by a saved vault connection (no reliance on the Pro session's
