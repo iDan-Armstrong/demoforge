@@ -101,6 +101,8 @@
 <!-- ======================= WORKBENCH ======================= -->
 <main id="view-workbench">
   <section>
+    <div class="card" id="loadBanner" hidden
+         style="border-color:#2d4a5a;background:#12212b"></div>
     <div class="card">
       <h2>Input</h2>
       <label>GeoJSON FeatureCollection (paste, or load a file)</label>
@@ -466,6 +468,8 @@ function renderBrowse() {
 $("browseList").addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-exp]");
   const copyBtn = e.target.closest("button[data-copy]");
+  const loadBtn = e.target.closest("button[data-load]");
+  if (loadBtn) { await loadLayerIntoWorkbench(loadBtn.dataset.load, loadBtn); return; }
   if (copyBtn) {
     const url = copyBtn.dataset.copy;
     try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
@@ -489,10 +493,38 @@ $("browseList").addEventListener("click", async (e) => {
       <span class="geom">${esc(l.geometry || l.kind)}</span>
       <span>${esc(l.name)}</span>
       <code title="${esc(l.url)}">${esc(l.url)}</code>
+      <button type="button" class="mini" data-load="${esc(l.url)}">Load into Workbench</button>
       <button type="button" class="mini ghost" data-copy="${esc(l.url)}">Copy URL</button>
       <span class="copied"></span>
     </div>`).join("") : '<span class="hint">no sublayers</span>';
 });
+
+async function loadLayerIntoWorkbench(url, btn) {
+  const label = btn.textContent;
+  btn.textContent = "fetching…"; btn.disabled = true;
+  try {
+    const resp = await api("/api/vault/fetch", { name: browseName, url });
+    const data = await resp.json();
+    if (!resp.ok) {
+      const note = btn.parentElement.querySelector(".copied");
+      if (note) { note.innerHTML = `<span class="err">${esc(data.error)}</span>`; }
+      return;
+    }
+    $("geojson").value = JSON.stringify(data.geojson);
+    $("policies").value = JSON.stringify(
+      data.policies.map((p) => ({ field: p.field, action: p.action, why: p.reason })), null, 1);
+    // jump to the Workbench with a note on what landed and what to set
+    document.querySelector('nav button[data-view="workbench"]').click();
+    const b = $("loadBanner");
+    b.hidden = false;
+    b.innerHTML = `Loaded <b>${esc(data.name)}</b> — ${data.feature_count.toLocaleString()} `
+      + `feature${data.feature_count === 1 ? "" : "s"}. Policies drafted below; `
+      + `set a private <b>seed</b> and <b>target bounds</b>, review the policies, then <b>Forge it</b>.`;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } finally {
+    btn.textContent = label; btn.disabled = false;
+  }
+}
 
 function resetForm() {
   editing = null;

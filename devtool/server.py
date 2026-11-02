@@ -31,10 +31,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from demoforge import ago  # noqa: E402
+from demoforge import ago, hosted  # noqa: E402
 from demoforge.audit import to_markdown  # noqa: E402
 from demoforge.fake import FieldPolicy  # noqa: E402
 from demoforge.pipeline import forge_geojson  # noqa: E402
+from demoforge.staging import suggest_policy  # noqa: E402
 from demoforge.vault import Vault, VaultError, default_backend  # noqa: E402
 
 HOST, PORT = "127.0.0.1", 8765
@@ -106,6 +107,7 @@ class Handler(BaseHTTPRequestHandler):
         "/api/vault/test": "_vault_test",
         "/api/vault/content": "_vault_content",
         "/api/vault/layers": "_vault_layers",
+        "/api/vault/fetch": "_vault_fetch",
     }
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib API
@@ -189,6 +191,19 @@ class Handler(BaseHTTPRequestHandler):
         layers = ago.list_service_layers(payload["url"], token)
         self._json(200, {"service_url": payload["url"].rstrip("/"),
                          "layers": layers})
+
+    def _vault_fetch(self, payload: dict) -> None:
+        # pull a hosted layer straight into the workbench — no ArcGIS Pro.
+        _meta, token = self._token_for(payload["name"])
+        name, fc = hosted.fetch_layer_geojson(payload["url"], token)
+        fields = sorted({k for feat in fc["features"]
+                         for k in (feat.get("properties") or {})})
+        self._json(200, {
+            "name": name,
+            "feature_count": len(fc["features"]),
+            "geojson": fc,
+            "policies": [suggest_policy(f) for f in fields],
+        })
 
     def log_message(self, fmt: str, *args) -> None:
         msg = fmt % args
