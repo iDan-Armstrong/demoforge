@@ -94,3 +94,66 @@ def test_network_failure_is_agoerror(monkeypatch):
     monkeypatch.setattr(ago.urllib.request, "urlopen", boom)
     with pytest.raises(AgoError, match="could not reach portal"):
         ago.validate_api_key("", "KEY")
+
+
+def test_list_user_items_walks_folders(monkeypatch):
+    FakePortal(monkeypatch, {
+        "/content/users/dan/F1": {
+            "items": [{"id": "3", "title": "In Folder", "type": "Map Service",
+                       "url": "https://x/MapServer"}],
+            "nextStart": -1},
+        "/content/users/dan": {
+            "items": [
+                {"id": "1", "title": "Parcels", "type": "Feature Service",
+                 "url": "https://x/FeatureServer", "owner": "dan"},
+                {"id": "2", "title": "A Web Map", "type": "Web Map"},
+            ],
+            "folders": [{"id": "F1", "title": "Work"}],
+            "nextStart": -1},
+    })
+    items = ago.list_user_items("https://www.arcgis.com", "TOK", "dan")
+    titles = {i["title"]: i for i in items}
+    assert set(titles) == {"Parcels", "A Web Map", "In Folder"}
+    assert titles["Parcels"]["is_layer"] is True
+    assert titles["A Web Map"]["is_layer"] is False  # web maps aren't layer-ish
+    assert titles["In Folder"]["type"] == "Map Service"
+
+
+def test_list_content_routes_to_user_content(monkeypatch):
+    FakePortal(monkeypatch, {
+        "/portals/self": {"name": "Town Org", "id": "ORG",
+                          "user": {"username": "dan"}},
+        "/content/users/dan": {"items": [], "folders": [], "nextStart": -1},
+    })
+    out = ago.list_content("https://www.arcgis.com", "TOK")
+    assert out["scope"] == "dan's content"
+    assert out["portal_name"] == "Town Org"
+
+
+def test_list_content_falls_back_to_org_search(monkeypatch):
+    portal = FakePortal(monkeypatch, {
+        "/portals/self": {"name": "Town Org", "id": "ORG"},  # no user (api-key)
+        "/search": {"results": [{"id": "9", "title": "Shared FS",
+                                 "type": "Feature Service",
+                                 "url": "https://x/FeatureServer"}],
+                    "nextStart": -1},
+    })
+    out = ago.list_content("https://www.arcgis.com", "KEY")
+    assert out["scope"] == "organization"
+    assert out["items"][0]["title"] == "Shared FS"
+    assert any(q.get("q") == "orgid:ORG" for _, q in portal.calls)
+
+
+def test_list_service_layers_builds_urls(monkeypatch):
+    FakePortal(monkeypatch, {
+        "/FeatureServer": {
+            "layers": [{"id": 0, "name": "Parcels", "geometryType": "esriGeometryPolygon"},
+                       {"id": 1, "name": "Pipes", "geometryType": "esriGeometryPolyline"}],
+            "tables": [{"id": 2, "name": "Owners"}]},
+    })
+    layers = ago.list_service_layers("https://x/FeatureServer/", token="TOK")
+    assert [lyr["url"] for lyr in layers] == [
+        "https://x/FeatureServer/0", "https://x/FeatureServer/1",
+        "https://x/FeatureServer/2"]
+    assert layers[0]["geometry"] == "Polygon"
+    assert layers[2]["kind"] == "table"

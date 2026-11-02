@@ -91,6 +91,8 @@ class Handler(BaseHTTPRequestHandler):
         "/api/vault": "_vault_set",
         "/api/vault/delete": "_vault_delete",
         "/api/vault/test": "_vault_test",
+        "/api/vault/content": "_vault_content",
+        "/api/vault/layers": "_vault_layers",
     }
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib API
@@ -150,6 +152,24 @@ class Handler(BaseHTTPRequestHandler):
         result = ago.test_connection(meta["kind"], meta["portal"],
                                      identity, secret)
         self._json(200, result)
+
+    def _token_for(self, name: str):
+        vault = open_vault()
+        meta = vault.get_entry(name)
+        token = ago.get_token(meta["kind"], meta["portal"],
+                              meta["username"], vault.get_secret(name))
+        return meta, token
+
+    def _vault_content(self, payload: dict) -> None:
+        meta, token = self._token_for(payload["name"])
+        result = ago.list_content(meta["portal"], token)
+        self._json(200, result)
+
+    def _vault_layers(self, payload: dict) -> None:
+        _meta, token = self._token_for(payload["name"])
+        layers = ago.list_service_layers(payload["url"], token)
+        self._json(200, {"service_url": payload["url"].rstrip("/"),
+                         "layers": layers})
 
     def log_message(self, fmt: str, *args) -> None:
         sys.stderr.write("  " + fmt % args + "\n")

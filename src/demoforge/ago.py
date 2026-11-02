@@ -135,3 +135,104 @@ def test_connection(kind: str, portal: str, identity: str, secret: str) -> dict:
         where = info.get("portal_name") or portal
         return {"ok": True, "summary": f"API key accepted on {where}"}
     raise AgoError(f"unknown credential kind {kind!r}")
+
+
+# --------------------------------------------------------------------------
+# Content browsing — what a connection can reach
+# --------------------------------------------------------------------------
+
+# the item types worth staging; others (web maps, apps, notebooks) are noise
+# for an extraction workflow, so the dashboard flags these as "layer-ish".
+LAYER_TYPES = frozenset({
+    "Feature Service", "Map Service", "Feature Collection",
+    "Vector Tile Service", "Image Service", "WFS", "Table",
+})
+
+
+def _norm_item(it: dict) -> dict:
+    return {
+        "id": it.get("id", ""),
+        "title": it.get("title") or it.get("name") or "(untitled)",
+        "type": it.get("type") or "",
+        "url": it.get("url") or "",
+        "owner": it.get("owner") or "",
+        "is_layer": (it.get("type") or "") in LAYER_TYPES,
+    }
+
+
+def _page_items(url: str, token: str, key: str, cap: int) -> list[dict]:
+    """Walk an AGO listing endpoint's start/nextStart paging."""
+    out: list[dict] = []
+    start = 1
+    while start not in (-1, 0, None) and len(out) < cap:
+        doc = _get(url, {"token": token, "num": 100, "start": start})
+        out.extend(doc.get(key, []))
+        start = doc.get("nextStart", -1)
+    return out
+
+
+def list_user_items(portal: str, token: str, username: str,
+                    cap: int = 500) -> list[dict]:
+    """Every item the signed-in user owns, across all their folders."""
+    base = _rest(portal) + "/content/users/" + urllib.parse.quote(username)
+    root = _get(base, {"token": token, "num": 100})
+    items = list(root.get("items", []))
+    start = root.get("nextStart", -1)
+    while start not in (-1, 0, None) and len(items) < cap:
+        doc = _get(base, {"token": token, "num": 100, "start": start})
+        items.extend(doc.get("items", []))
+        start = doc.get("nextStart", -1)
+    for folder in root.get("folders", []):
+        fid = folder.get("id")
+        if fid:
+            items.extend(_page_items(base + "/" + fid, token, "items",
+                                     cap - len(items)))
+    return [_norm_item(it) for it in items]
+
+
+def search_items(portal: str, token: str, orgid: str, cap: int = 300) -> list[dict]:
+    """Org-wide item search — the fallback when a token has no user (api-key/app)."""
+    url = _rest(portal) + "/search"
+    out: list[dict] = []
+    start = 1
+    while start not in (-1, 0, None) and len(out) < cap:
+        doc = _get(url, {"token": token, "q": f"orgid:{orgid}",
+                         "num": 100, "start": start})
+        out.extend(doc.get("results", []))
+        start = doc.get("nextStart", -1)
+    return [_norm_item(it) for it in out]
+
+
+def list_content(portal: str, token: str) -> dict:
+    """Everything this connection can reach. Routes by whether the token has a user.
+
+    Returns {'scope', 'portal_name', 'items': [...]}.
+    """
+    self_doc = _get(_rest(portal) + "/portals/self", {"token": token})
+    user = self_doc.get("user") or {}
+    username = user.get("username")
+    portal_name = self_doc.get("name", "")
+    if username:
+        return {"scope": f"{username}'s content", "portal_name": portal_name,
+                "items": list_user_items(portal, token, username)}
+    orgid = self_doc.get("id", "")
+    return {"scope": "organization", "portal_name": portal_name,
+            "items": search_items(portal, token, orgid)}
+
+
+def list_service_layers(service_url: str, token: str | None = None) -> list[dict]:
+    """The sublayers and tables of one Feature/Map Service, with ready URLs."""
+    base = service_url.strip().rstrip("/")
+    doc = _post(base, {"token": token} if token else {})
+    out = []
+    for group in ("layers", "tables"):
+        for lyr in doc.get(group) or []:
+            lid = lyr.get("id")
+            out.append({
+                "id": lid,
+                "name": lyr.get("name") or f"layer {lid}",
+                "kind": "table" if group == "tables" else "layer",
+                "geometry": lyr.get("geometryType", "").replace("esriGeometry", ""),
+                "url": f"{base}/{lid}",
+            })
+    return out

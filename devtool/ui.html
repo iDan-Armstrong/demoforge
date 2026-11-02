@@ -66,6 +66,25 @@
                 color:var(--accent); }
   .teststat { font-size:12px; margin-top:2px; white-space:normal;
               max-width:280px; margin-left:auto; line-height:1.4; }
+  .item { border-bottom:1px solid var(--border); padding:8px 2px; }
+  .item-head { display:flex; align-items:center; gap:10px; }
+  .item-title { font-weight:600; font-size:13px; }
+  .type-badge { font-size:10.5px; padding:2px 7px; border-radius:9px;
+                background:#12151a; border:1px solid var(--border); color:var(--muted); }
+  .type-badge.layer { color:var(--accent); border-color:#2d4a5a; }
+  .item .expand { margin-left:auto; }
+  .sublayers { margin:8px 0 2px 14px; border-left:2px solid var(--border);
+               padding-left:12px; }
+  .sublayer { display:flex; align-items:center; gap:8px; padding:4px 0;
+              font-size:12px; }
+  .sublayer .geom { color:var(--muted); font-size:11px; min-width:66px; }
+  .sublayer code { background:#12151a; border:1px solid var(--border);
+                   border-radius:4px; padding:2px 6px; font-size:11px;
+                   color:var(--fg); flex:1; overflow:hidden; text-overflow:ellipsis;
+                   white-space:nowrap; }
+  .copied { color:var(--pass); font-size:11px; }
+  .filter-row { display:flex; gap:8px; align-items:center; margin:4px 0 10px; }
+  .filter-row label { margin:0; }
 </style>
 </head>
 <body>
@@ -148,6 +167,11 @@
         shown again — the list and this page only ever see metadata. On Windows
         they're encrypted to your user account with DPAPI; elsewhere they live in
         the OS keyring.</div>
+    </div>
+    <div class="card" id="browseCard" hidden>
+      <h2 id="browseTitle">Contents</h2>
+      <div id="browseStatus" class="hint"></div>
+      <div id="browseList"></div>
     </div>
     <div class="card">
       <h2 id="formTitle">Add connection</h2>
@@ -308,6 +332,7 @@ async function loadVault() {
       <td>${esc(e.username) || "<span class='hint'>—</span>"}</td>
       <td>${esc(e.updated.slice(0, 10))}</td>
       <td class="actions">
+        <button type="button" class="mini ghost" data-act="browse">Browse</button>
         <button type="button" class="mini ghost" data-act="test">Test</button>
         <button type="button" class="mini ghost" data-act="edit">Edit</button>
         <button type="button" class="mini danger" data-act="delete">Delete</button>
@@ -348,7 +373,82 @@ $("connRows").addEventListener("click", async (e) => {
     const resp = await api("/api/vault/delete", { name });
     if (!resp.ok) stat.innerHTML = `<span class="err">${esc((await resp.json()).error)}</span>`;
     else loadVault();
+  } else if (btn.dataset.act === "browse") {
+    browseConnection(name);
   }
+});
+
+/* ---- content browser ---- */
+let browseItems = [];
+let browseName = "";
+
+async function browseConnection(name) {
+  browseName = name;
+  $("browseCard").hidden = false;
+  $("browseTitle").textContent = `Contents — ${name}`;
+  $("browseStatus").innerHTML = "loading…";
+  $("browseList").innerHTML = "";
+  $("browseCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  const resp = await api("/api/vault/content", { name });
+  const data = await resp.json();
+  if (!resp.ok) { $("browseStatus").innerHTML = `<span class="err">${esc(data.error)}</span>`; return; }
+  browseItems = data.items;
+  const layers = browseItems.filter((i) => i.is_layer).length;
+  $("browseStatus").innerHTML =
+    `${browseItems.length} items in ${esc(data.scope)} on ${esc(data.portal_name)} — `
+    + `<b>${layers}</b> layer service${layers === 1 ? "" : "s"}. `
+    + `<label style="display:inline"><input type="checkbox" id="layersOnly" checked> `
+    + `layer services only</label>`;
+  $("layersOnly").addEventListener("change", renderBrowse);
+  renderBrowse();
+}
+
+function renderBrowse() {
+  const only = $("layersOnly")?.checked;
+  const rows = browseItems.filter((i) => !only || i.is_layer);
+  if (!rows.length) { $("browseList").innerHTML =
+    '<div class="hint">Nothing to show. Uncheck the filter to see all item types.</div>'; return; }
+  $("browseList").innerHTML = rows.map((it, idx) => `
+    <div class="item" data-idx="${browseItems.indexOf(it)}">
+      <div class="item-head">
+        <span class="item-title">${esc(it.title)}</span>
+        <span class="type-badge ${it.is_layer ? "layer" : ""}">${esc(it.type)}</span>
+        ${it.url && it.is_layer
+          ? `<button type="button" class="mini ghost expand" data-exp>▸ layers</button>` : ""}
+      </div>
+      <div class="sublayers" hidden></div>
+    </div>`).join("");
+}
+
+$("browseList").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-exp]");
+  const copyBtn = e.target.closest("button[data-copy]");
+  if (copyBtn) {
+    const url = copyBtn.dataset.copy;
+    try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
+    const note = copyBtn.nextElementSibling;
+    if (note) { note.textContent = "copied"; setTimeout(() => (note.textContent = ""), 1500); }
+    return;
+  }
+  if (!btn) return;
+  const item = browseItems[+btn.closest(".item").dataset.idx];
+  const sub = btn.closest(".item").querySelector(".sublayers");
+  if (!sub.hidden) { sub.hidden = true; btn.textContent = "▸ layers"; return; }
+  btn.textContent = "loading…";
+  const resp = await api("/api/vault/layers", { name: browseName, url: item.url });
+  const data = await resp.json();
+  btn.textContent = "▾ layers";
+  if (!resp.ok) { sub.hidden = false;
+    sub.innerHTML = `<span class="err">${esc(data.error)}</span>`; return; }
+  sub.hidden = false;
+  sub.innerHTML = data.layers.length ? data.layers.map((l) => `
+    <div class="sublayer">
+      <span class="geom">${esc(l.geometry || l.kind)}</span>
+      <span>${esc(l.name)}</span>
+      <code title="${esc(l.url)}">${esc(l.url)}</code>
+      <button type="button" class="mini ghost" data-copy="${esc(l.url)}">Copy URL</button>
+      <span class="copied"></span>
+    </div>`).join("") : '<span class="hint">no sublayers</span>';
 });
 
 function resetForm() {
