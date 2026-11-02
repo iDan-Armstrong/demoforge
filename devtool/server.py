@@ -1,6 +1,7 @@
 """demoforge dev harness — a local, zero-dependency web workbench.
 
-    python devtool/server.py          # then open http://localhost:8765
+    python devtool/server.py            # then open http://localhost:8765
+    python devtool/server.py --reload   # auto-restart + auto-refresh on change
 
 Menu: Workbench (forge GeoJSON, see previews and the leak audit) and
 Connections (ArcGIS Online credentials in the local vault — DPAPI-encrypted
@@ -11,12 +12,20 @@ can now reach stored secrets, every mutating request must carry the
 ``X-Demoforge: 1`` header: a cross-site page can't add that header without
 a CORS preflight this server never grants, so drive-by POSTs from the
 browser are rejected even on localhost.
+
+--reload runs a tiny supervisor that re-launches the server whenever a
+source file changes (a local edit, or a ``git pull`` while it runs), and
+the page polls ``/api/alive`` so it reloads itself when the server comes
+back — no manual restart or hard-refresh.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
+import subprocess
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -30,6 +39,8 @@ from demoforge.vault import Vault, VaultError, default_backend  # noqa: E402
 
 HOST, PORT = "127.0.0.1", 8765
 HTML_PATH = Path(__file__).with_name("ui.html")
+_REPO = Path(__file__).resolve().parents[1]
+BOOT = 0.0  # epoch when this server process started serving; the page watches it
 
 
 def open_vault() -> Vault:
@@ -67,6 +78,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, HTML_PATH.read_bytes(), "text/html; charset=utf-8")
         elif self.path == "/api/vault":
             self._vault_status()
+        elif self.path == "/api/alive":
+            self._json(200, {"boot": BOOT})  # the page reloads when this changes
         else:
             self._send(404, b"not found", "text/plain")
 
@@ -178,7 +191,10 @@ class Handler(BaseHTTPRequestHandler):
                          "layers": layers})
 
     def log_message(self, fmt: str, *args) -> None:
-        sys.stderr.write("  " + fmt % args + "\n")
+        msg = fmt % args
+        if "/api/alive" in msg:  # the reload poll would spam the console
+            return
+        sys.stderr.write("  " + msg + "\n")
 
 
 class WorkbenchServer(HTTPServer):
@@ -187,18 +203,89 @@ class WorkbenchServer(HTTPServer):
     allow_reuse_address = False
 
 
-def main() -> None:
-    try:
-        server = WorkbenchServer((HOST, PORT), Handler)
-    except OSError:
+# --------------------------------------------------------------------------
+# Running: plain, a reload supervisor, or the supervised child
+# --------------------------------------------------------------------------
+
+_WATCH_GLOBS = ("src/demoforge/*.py", "devtool/*.py", "devtool/ui.html")
+
+
+def _source_mtime() -> float:
+    latest = 0.0
+    for pattern in _WATCH_GLOBS:
+        for path in _REPO.glob(pattern):
+            with contextlib.suppress(OSError):
+                latest = max(latest, path.stat().st_mtime)
+    return latest
+
+
+def _bind(*, child: bool) -> WorkbenchServer | None:
+    # A supervised child reuses the address so a restart rebinds instantly
+    # (the old child is already fully dead by then). A plain start keeps
+    # reuse off and fails fast, so an accidental double-run is caught.
+    WorkbenchServer.allow_reuse_address = child
+    attempts = 20 if child else 1
+    for i in range(attempts):
+        try:
+            return WorkbenchServer((HOST, PORT), Handler)
+        except OSError:
+            if i + 1 < attempts:
+                time.sleep(0.25)
+    return None
+
+
+def _serve(*, child: bool) -> None:
+    global BOOT
+    server = _bind(child=child)
+    if server is None:
         print(f"port {PORT} is busy: another demoforge workbench is already running.")
         print("Close the other demoforge window, then start this one again.")
         sys.exit(1)
-    print(f"demoforge dev harness: http://{HOST}:{PORT}  (Ctrl+C to stop)")
+    BOOT = time.time()
+    print("  server ready" if child
+          else f"demoforge dev harness: http://{HOST}:{PORT}  (Ctrl+C to stop)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        if not child:
+            print("\nbye")
+
+
+def _supervise() -> None:
+    print(f"demoforge dev harness (auto-reload): http://{HOST}:{PORT}  (Ctrl+C to stop)")
+    child = None
+    try:
+        while True:
+            child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()),
+                                      "--serve"])
+            last = _source_mtime()
+            while True:
+                time.sleep(1.0)
+                if child.poll() is not None:  # child exited (e.g. port busy)
+                    print("  server stopped; exiting reload supervisor")
+                    return
+                if _source_mtime() != last:
+                    print("  source changed — restarting server")
+                    child.terminate()
+                    try:
+                        child.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        child.kill()
+                        child.wait()
+                    break
+    except KeyboardInterrupt:
         print("\nbye")
+    finally:
+        if child and child.poll() is None:
+            child.terminate()
+
+
+def main() -> None:
+    args = set(sys.argv[1:])
+    if "--reload" in args:
+        _supervise()
+    else:
+        _serve(child="--serve" in args)
 
 
 if __name__ == "__main__":

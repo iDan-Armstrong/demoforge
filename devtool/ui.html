@@ -526,6 +526,22 @@ $("cSave").addEventListener("click", async () => {
   $("connMsg").innerHTML = '<span class="ok">Saved.</span>';
   loadVault();
 });
+
+/* dev auto-reload: when the server restarts (a source change picked up by
+   `server.py --reload`), its boot stamp changes and the page reloads itself.
+   In plain mode the stamp never changes, so this stays idle. */
+(function watchServer() {
+  let boot = null;
+  setInterval(async () => {
+    try {
+      const r = await fetch("/api/alive", { cache: "no-store" });
+      if (!r.ok) return;
+      const b = (await r.json()).boot;
+      if (boot === null) boot = b;
+      else if (b !== boot) location.reload();
+    } catch { /* server mid-restart — ignore and keep polling */ }
+  }, 1500);
+})();
 </script>
 </body>
 </html>
