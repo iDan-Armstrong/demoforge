@@ -96,34 +96,41 @@ def test_network_failure_is_agoerror(monkeypatch):
         ago.validate_api_key("", "KEY")
 
 
-def test_list_user_items_walks_folders(monkeypatch):
-    FakePortal(monkeypatch, {
-        "/content/users/dan/F1": {
-            "items": [{"id": "3", "title": "In Folder", "type": "Map Service",
-                       "url": "https://x/MapServer"}],
-            "nextStart": -1},
-        "/content/users/dan": {
-            "items": [
+def test_list_user_items_uses_owner_search(monkeypatch):
+    portal = FakePortal(monkeypatch, {
+        "/search": {
+            "results": [
                 {"id": "1", "title": "Parcels", "type": "Feature Service",
                  "url": "https://x/FeatureServer", "owner": "dan"},
                 {"id": "2", "title": "A Web Map", "type": "Web Map"},
             ],
-            "folders": [{"id": "F1", "title": "Work"}],
             "nextStart": -1},
     })
     items = ago.list_user_items("https://www.arcgis.com", "TOK", "dan")
     titles = {i["title"]: i for i in items}
-    assert set(titles) == {"Parcels", "A Web Map", "In Folder"}
+    assert set(titles) == {"Parcels", "A Web Map"}
     assert titles["Parcels"]["is_layer"] is True
     assert titles["A Web Map"]["is_layer"] is False  # web maps aren't layer-ish
-    assert titles["In Folder"]["type"] == "Map Service"
+    # a single bulk owner-search, not a per-folder walk
+    assert len(portal.calls) == 1
+    assert portal.calls[0][1]["q"] == "owner:dan"
+
+
+def test_search_stops_at_page_cap(monkeypatch):
+    # a server that never returns nextStart=-1 must still terminate
+    portal = FakePortal(monkeypatch, {
+        "/search": {"results": [{"id": "x", "title": "t", "type": "Feature Service"}],
+                    "nextStart": 999},  # always "more"
+    })
+    ago.list_user_items("https://www.arcgis.com", "TOK", "dan")
+    assert len(portal.calls) == 20  # hard page cap, no infinite loop
 
 
 def test_list_content_routes_to_user_content(monkeypatch):
     FakePortal(monkeypatch, {
         "/portals/self": {"name": "Town Org", "id": "ORG",
                           "user": {"username": "dan"}},
-        "/content/users/dan": {"items": [], "folders": [], "nextStart": -1},
+        "/search": {"results": [], "nextStart": -1},
     })
     out = ago.list_content("https://www.arcgis.com", "TOK")
     assert out["scope"] == "dan's content"

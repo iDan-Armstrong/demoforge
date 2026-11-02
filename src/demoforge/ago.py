@@ -160,47 +160,35 @@ def _norm_item(it: dict) -> dict:
     }
 
 
-def _page_items(url: str, token: str, key: str, cap: int) -> list[dict]:
-    """Walk an AGO listing endpoint's start/nextStart paging."""
+def _search(portal: str, token: str, query: str, cap: int) -> list[dict]:
+    """Paged /search — one bulk call per 100 items, hard-capped.
+
+    One query (``owner:<user>`` or ``orgid:<id>``) beats walking every
+    folder: a few calls total instead of one per folder. An authenticated
+    owner search returns the user's own private items too.
+    """
+    url = _rest(portal) + "/search"
     out: list[dict] = []
     start = 1
-    while start not in (-1, 0, None) and len(out) < cap:
-        doc = _get(url, {"token": token, "num": 100, "start": start})
-        out.extend(doc.get(key, []))
+    pages = 0
+    while start not in (-1, 0, None) and len(out) < cap and pages < 20:
+        doc = _get(url, {"token": token, "q": query, "num": 100,
+                         "start": start, "sortField": "title"})
+        out.extend(doc.get("results", []))
         start = doc.get("nextStart", -1)
-    return out
+        pages += 1
+    return [_norm_item(it) for it in out]
 
 
 def list_user_items(portal: str, token: str, username: str,
-                    cap: int = 500) -> list[dict]:
-    """Every item the signed-in user owns, across all their folders."""
-    base = _rest(portal) + "/content/users/" + urllib.parse.quote(username)
-    root = _get(base, {"token": token, "num": 100})
-    items = list(root.get("items", []))
-    start = root.get("nextStart", -1)
-    while start not in (-1, 0, None) and len(items) < cap:
-        doc = _get(base, {"token": token, "num": 100, "start": start})
-        items.extend(doc.get("items", []))
-        start = doc.get("nextStart", -1)
-    for folder in root.get("folders", []):
-        fid = folder.get("id")
-        if fid:
-            items.extend(_page_items(base + "/" + fid, token, "items",
-                                     cap - len(items)))
-    return [_norm_item(it) for it in items]
+                    cap: int = 400) -> list[dict]:
+    """Items the signed-in user owns — one bulk owner-search, not a folder walk."""
+    return _search(portal, token, f"owner:{username}", cap)
 
 
 def search_items(portal: str, token: str, orgid: str, cap: int = 300) -> list[dict]:
     """Org-wide item search — the fallback when a token has no user (api-key/app)."""
-    url = _rest(portal) + "/search"
-    out: list[dict] = []
-    start = 1
-    while start not in (-1, 0, None) and len(out) < cap:
-        doc = _get(url, {"token": token, "q": f"orgid:{orgid}",
-                         "num": 100, "start": start})
-        out.extend(doc.get("results", []))
-        start = doc.get("nextStart", -1)
-    return [_norm_item(it) for it in out]
+    return _search(portal, token, f"orgid:{orgid}", cap)
 
 
 def list_content(portal: str, token: str) -> dict:
