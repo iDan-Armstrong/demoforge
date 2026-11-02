@@ -36,7 +36,7 @@ def _rest(portal: str) -> str:
 
 
 def _post(url: str, params: dict) -> dict:
-    data = urllib.parse.urlencode({**params, "f": "json"}).encode()
+    data = urllib.parse.urlencode({"f": "json", **params}).encode()
     req = urllib.request.Request(url, data=data, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
@@ -102,6 +102,17 @@ def _whoami(portal: str, token: str) -> dict:
         "role": user.get("role", ""),
         "portal_name": doc.get("name", ""),
     }
+
+
+def get_token(kind: str, portal: str, identity: str, secret: str) -> str:
+    """Turn any vault entry kind into a usable token string."""
+    if kind == "agol-user":
+        return generate_token(portal, identity, secret)["token"]
+    if kind == "agol-oauth":
+        return oauth_token(portal, identity, secret)["token"]
+    if kind == "api-key":
+        return secret  # an API key is sent as the token directly
+    raise AgoError(f"unknown credential kind {kind!r}")
 
 
 def test_connection(kind: str, portal: str, identity: str, secret: str) -> dict:

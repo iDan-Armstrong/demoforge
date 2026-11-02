@@ -2,9 +2,12 @@
 """Demoforge Extract — ArcGIS Pro Python Toolbox (the on-ramp).
 
 Selects layers from the map (local feature classes OR hosted feature
-layers — anything a SearchCursor can read), or sweeps an entire
-geodatabase, and stages everything for demoforge: one GeoJSON per layer
-plus a drafted demoforge_job.json with suggested field policies.
+layers — anything a SearchCursor can read), sweeps an entire geodatabase,
+and/or pulls hosted layers straight from their REST URLs — authenticated
+by a connection saved in the local demoforge vault (workbench →
+Connections), independent of the Pro session's sign-in. Everything stages
+the same way: one GeoJSON per layer plus a drafted demoforge_job.json
+with suggested field policies.
 
 Install demoforge into the Pro conda environment (pip install -e .) and
 add this .pyt in Catalog. The tool only READS sources; staging output is
@@ -16,7 +19,9 @@ import os
 
 import arcpy
 
+from demoforge import ago, hosted
 from demoforge.staging import build_job_config
+from demoforge.vault import Vault, VaultError
 
 
 class Toolbox:
@@ -52,6 +57,23 @@ class ExtractToDemoforge:
             parameterType="Optional",
             direction="Input",
         )
+        urls = arcpy.Parameter(
+            displayName="Or: hosted layer URLs (…/FeatureServer/<index>)",
+            name="in_urls",
+            datatype="GPString",
+            parameterType="Optional",
+            direction="Input",
+            multiValue=True,
+        )
+        connection = arcpy.Parameter(
+            displayName="Vault connection for hosted URLs "
+                        "(name from the workbench Connections menu; "
+                        "blank = public access)",
+            name="connection",
+            datatype="GPString",
+            parameterType="Optional",
+            direction="Input",
+        )
         out_folder = arcpy.Parameter(
             displayName="Staging Folder (created if missing)",
             name="out_folder",
@@ -59,12 +81,18 @@ class ExtractToDemoforge:
             parameterType="Required",
             direction="Input",
         )
-        return [layers, gdb, out_folder]
+        return [layers, gdb, urls, connection, out_folder]
+
+    @staticmethod
+    def _safe(name):
+        return "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
 
     def execute(self, parameters, messages):
-        layer_param, gdb_param, folder_param = parameters
+        layer_param, gdb_param, urls_param, conn_param, folder_param = parameters
         staging = folder_param.valueAsText
         os.makedirs(staging, exist_ok=True)
+
+        urls = [u.strip() for u in (urls_param.values or []) if u.strip()]
 
         sources = []
         if layer_param.values:
@@ -75,13 +103,49 @@ class ExtractToDemoforge:
             walk = arcpy.da.Walk(source_workspace, datatype="FeatureClass")
             for dirpath, _dirnames, filenames in walk:
                 sources += [(os.path.join(dirpath, fc), fc) for fc in filenames]
-        if not sources:
-            raise arcpy.ExecuteError("select layers, a geodatabase, or both")
+        if not sources and not urls:
+            raise arcpy.ExecuteError(
+                "select layers, a geodatabase, hosted URLs, or a mix")
 
         layer_fields = {}
+
+        # ---- hosted layers: token from the local vault, not the Pro session
+        if urls:
+            token = None
+            conn = (conn_param.valueAsText or "").strip()
+            if conn:
+                try:
+                    vault = Vault()
+                    meta = vault.get_entry(conn)
+                    token = ago.get_token(meta["kind"], meta["portal"],
+                                          meta["username"],
+                                          vault.get_secret(conn))
+                    arcpy.AddMessage(f"vault connection {conn!r} -> token OK")
+                except (VaultError, ago.AgoError) as exc:
+                    raise arcpy.ExecuteError(f"vault connection failed: {exc}")
+            else:
+                arcpy.AddMessage("no vault connection given — trying public access")
+            for url in urls:
+                try:
+                    name, fc = hosted.fetch_layer_geojson(
+                        url, token=token,
+                        on_page=lambda n: arcpy.SetProgressorLabel(
+                            f"fetched {n} features…"))
+                except ago.AgoError as exc:
+                    raise arcpy.ExecuteError(f"{url}: {exc}")
+                safe = self._safe(name)
+                out_path = os.path.join(staging, f"{safe}.geojson")
+                with open(out_path, "w", encoding="utf-8") as fh:
+                    json.dump(fc, fh, default=str)
+                fields = sorted({k for f in fc["features"]
+                                 for k in (f.get("properties") or {})})
+                layer_fields[safe] = fields
+                arcpy.AddMessage(
+                    f"hosted {name} -> {out_path}: "
+                    f"{len(fc['features'])} features, {len(fields)} fields")
         for src, forced_name in sources:
             name = forced_name or arcpy.Describe(src).baseName
-            safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
+            safe = self._safe(name)
             out_path = os.path.join(staging, f"{safe}.geojson")
             arcpy.AddMessage(f"extracting {name} -> {out_path}")
 

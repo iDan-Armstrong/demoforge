@@ -43,7 +43,9 @@ makes your sign-off informed — it does not make it unnecessary.
 
 1. **Extract (ArcGIS Pro):** add `toolbox/DemoForgeExtract.pyt` in Catalog and run
    *Extract To Demoforge* — select map layers (local feature classes or hosted
-   feature layers) and/or sweep a whole geodatabase. It stages one GeoJSON per
+   feature layers), sweep a whole geodatabase, and/or paste hosted layer URLs
+   authenticated by a saved vault connection (no reliance on the Pro session's
+   sign-in). It stages one GeoJSON per
    layer plus a drafted `demoforge_job.json` with **suggested** field policies
    (owner-ish fields → fake person, id-ish → format-preserving fake, system
    fields → drop). Suggestions are drafts; you review every one.
