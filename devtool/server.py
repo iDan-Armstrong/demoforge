@@ -235,10 +235,11 @@ def _source_mtime() -> float:
 
 
 def _bind(*, child: bool) -> WorkbenchServer | None:
-    # A supervised child reuses the address so a restart rebinds instantly
-    # (the old child is already fully dead by then). A plain start keeps
-    # reuse off and fails fast, so an accidental double-run is caught.
-    WorkbenchServer.allow_reuse_address = child
+    # Never reuse the address: on Windows SO_REUSEADDR lets a second server
+    # bind the same port and silently coexist with a stale one, which is
+    # exactly the confusing state to avoid. A supervised child only retries
+    # (the old child is already terminated, so the port frees within a beat);
+    # a plain start fails fast so an accidental double-run is caught loudly.
     attempts = 20 if child else 1
     for i in range(attempts):
         try:
