@@ -9,16 +9,23 @@
           --accent:#4cc2ff; --fail:#ff6b57; --pass:#57d9a3; --border:#2b323a; }
   html,body { margin:0; background:var(--bg); color:var(--fg);
               font-family:"Segoe UI",system-ui,sans-serif; }
-  header { padding:14px 22px; border-bottom:1px solid var(--border); }
-  header h1 { font-size:17px; margin:0; } header span { color:var(--muted); font-size:12px; }
+  header { display:flex; align-items:baseline; gap:26px;
+           padding:14px 22px; border-bottom:1px solid var(--border); }
+  header h1 { font-size:17px; margin:0; } header .sub { color:var(--muted); font-size:12px; }
+  nav { display:flex; gap:4px; margin-left:auto; }
+  nav button { background:none; border:none; color:var(--muted); font-size:13.5px;
+               padding:7px 14px; margin:0; border-radius:7px; cursor:pointer; }
+  nav button.active { background:var(--panel); color:var(--fg);
+                      border:1px solid var(--border); }
   main { display:grid; grid-template-columns: 420px 1fr; gap:16px; padding:16px 22px; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  main.single { grid-template-columns: minmax(420px, 760px); justify-content:center; }
+  @media (max-width: 900px) { main, main.single { grid-template-columns: 1fr; } }
   .card { background:var(--panel); border:1px solid var(--border); border-radius:10px;
           padding:14px 16px; margin-bottom:14px; }
   h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em;
        color:var(--muted); margin:0 0 10px; }
   label { display:block; font-size:12px; color:var(--muted); margin:8px 0 3px; }
-  input[type=text], textarea {
+  input[type=text], input[type=password], select, textarea {
     width:100%; box-sizing:border-box; background:#12151a; color:var(--fg);
     border:1px solid var(--border); border-radius:6px; padding:7px 9px;
     font-family:Consolas,monospace; font-size:12.5px;
@@ -30,6 +37,10 @@
     border-radius:7px; padding:9px 18px; font-size:14px; cursor:pointer; margin-top:12px;
   }
   button:hover { filter:brightness(1.1); }
+  button.ghost { background:#2b323a; color:var(--fg); }
+  button.mini { padding:4px 10px; font-size:12px; margin:0 0 0 6px; }
+  button.danger { background:transparent; color:var(--fail);
+                  border:1px solid var(--fail); }
   a.dl { color:var(--accent); font-size:13px; text-decoration:none; }
   .stat-row { display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
   .stat { flex:1; min-width:90px; background:#12151a; border-radius:8px;
@@ -40,24 +51,40 @@
   .finding { font-size:12.5px; padding:6px 9px; margin:5px 0; background:#12151a;
              border-left:3px solid var(--fail); border-radius:4px; }
   .finding b { color:var(--accent); }
-  #error { color:var(--fail); font-size:13px; white-space:pre-wrap; }
-  .ok-banner { color:var(--pass); font-size:14px; }
+  #error, .err { color:var(--fail); font-size:13px; white-space:pre-wrap; }
+  .ok-banner, .ok { color:var(--pass); font-size:13px; }
   .hint { font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; color:var(--muted); font-weight:500; font-size:11px;
+       text-transform:uppercase; letter-spacing:.06em; padding:6px 8px;
+       border-bottom:1px solid var(--border); }
+  td { padding:7px 8px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  td.actions { text-align:right; white-space:nowrap; }
+  .kind-badge { display:inline-block; font-size:10.5px; padding:2px 7px;
+                border-radius:9px; background:#12151a; border:1px solid var(--border);
+                color:var(--accent); }
+  .teststat { font-size:12px; margin-top:2px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>demoforge workbench</h1>
-  <span>relocate · fake · audit — local dev harness (GeoJSON in, GeoJSON out)</span>
+  <h1>demoforge</h1>
+  <span class="sub">relocate · fake · audit — local dev harness</span>
+  <nav>
+    <button type="button" data-view="workbench" class="active">Workbench</button>
+    <button type="button" data-view="connections">Connections</button>
+  </nav>
 </header>
-<main>
+
+<!-- ======================= WORKBENCH ======================= -->
+<main id="view-workbench">
   <section>
     <div class="card">
       <h2>Input</h2>
       <label>GeoJSON FeatureCollection (paste, or load a file)</label>
       <textarea id="geojson" rows="8" spellcheck="false"></textarea>
       <input type="file" id="file" accept=".geojson,.json" style="margin-top:6px" />
-      <button type="button" id="sample" style="background:#2b323a;color:var(--fg)">Load sample</button>
+      <button type="button" id="sample" class="ghost">Load sample</button>
     </div>
     <div class="card">
       <h2>Forge config</h2>
@@ -103,9 +130,72 @@
     </div>
   </section>
 </main>
+
+<!-- ======================= CONNECTIONS ======================= -->
+<main id="view-connections" class="single" hidden>
+  <section>
+    <div class="card">
+      <h2>Saved connections</h2>
+      <div id="vaultStatus" class="hint">loading…</div>
+      <table id="connTable" hidden>
+        <thead><tr><th>Name</th><th>Kind</th><th>Portal</th><th>Identity</th>
+                   <th>Updated</th><th></th></tr></thead>
+        <tbody id="connRows"></tbody>
+      </table>
+      <div class="hint" style="margin-top:8px">Secrets are stored once and never
+        shown again — the list and this page only ever see metadata. On Windows
+        they're encrypted to your user account with DPAPI; elsewhere they live in
+        the OS keyring.</div>
+    </div>
+    <div class="card">
+      <h2 id="formTitle">Add connection</h2>
+      <div class="row">
+        <div><label>Name (how you'll refer to it)</label>
+          <input type="text" id="cName" placeholder="work-agol" /></div>
+        <div><label>Kind</label>
+          <select id="cKind">
+            <option value="agol-user">AGO sign-in (username + password)</option>
+            <option value="agol-oauth">OAuth app (client id + secret)</option>
+            <option value="api-key">API key</option>
+          </select></div>
+      </div>
+      <label>Portal URL</label>
+      <input type="text" id="cPortal" value="https://www.arcgis.com" />
+      <div class="row">
+        <div id="cIdWrap"><label id="cIdLabel">Username</label>
+          <input type="text" id="cIdentity" autocomplete="off" /></div>
+        <div><label id="cSecretLabel">Password</label>
+          <input type="password" id="cSecret" autocomplete="new-password" /></div>
+      </div>
+      <button type="button" id="cSave">Save to vault</button>
+      <button type="button" id="cCancel" class="ghost" hidden>Cancel edit</button>
+      <div id="connMsg" class="teststat"></div>
+    </div>
+  </section>
+</main>
+
 <script>
 const $ = (id) => document.getElementById(id);
+const api = (url, body) => fetch(url, body === undefined ? undefined : {
+  method: "POST",
+  headers: { "Content-Type": "application/json", "X-Demoforge": "1" },
+  body: JSON.stringify(body),
+});
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/"/g, "&quot;");
 
+/* ---------------- menu ---------------- */
+document.querySelectorAll("nav button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach((x) =>
+      x.classList.toggle("active", x === b));
+    document.querySelectorAll("main").forEach((m) =>
+      m.hidden = m.id !== "view-" + b.dataset.view);
+    if (b.dataset.view === "connections") loadVault();
+  });
+});
+
+/* ---------------- workbench ---------------- */
 $("file").addEventListener("change", async (e) => {
   const f = e.target.files[0];
   if (f) $("geojson").value = await f.text();
@@ -155,9 +245,7 @@ $("run").addEventListener("click", async () => {
     policies,
     blocklist: $("blocklist").value.split("\n").map((s) => s.trim()).filter(Boolean),
   };
-  const resp = await fetch("/api/forge", { method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ geojson, config }) });
+  const resp = await api("/api/forge", { geojson, config });
   const data = await resp.json();
   if (!resp.ok) { $("error").textContent = data.error || "forge failed"; return; }
 
@@ -176,9 +264,122 @@ $("run").addEventListener("click", async () => {
 
   $("audit").innerHTML = data.findings.length
     ? data.findings.map((f) =>
-        `<div class="finding"><b>${f.record}</b> · ${f.field} · [${f.kind}] ${f.excerpt
-          .replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`).join("")
+        `<div class="finding"><b>${esc(f.record)}</b> · ${esc(f.field)} · [${esc(f.kind)}] ${
+          esc(f.excerpt)}</div>`).join("")
     : '<div class="ok-banner">CLEAN — no findings. Still read the output with human eyes.</div>';
+});
+
+/* ---------------- connections ---------------- */
+const KIND_LABELS = {
+  "agol-user":  { badge: "AGO user",  id: "Username",  secret: "Password" },
+  "agol-oauth": { badge: "OAuth app", id: "Client ID", secret: "Client secret" },
+  "api-key":    { badge: "API key",   id: "",          secret: "API key" },
+};
+let editing = null;  // entry name while editing
+
+function syncKindLabels() {
+  const k = KIND_LABELS[$("cKind").value];
+  $("cIdWrap").style.visibility = k.id ? "visible" : "hidden";
+  $("cIdLabel").textContent = k.id || "–";
+  $("cSecretLabel").textContent = k.secret;
+}
+$("cKind").addEventListener("change", syncKindLabels);
+syncKindLabels();
+
+async function loadVault() {
+  const data = await (await api("/api/vault")).json();
+  const st = $("vaultStatus");
+  if (!data.available) {
+    st.innerHTML = `<span class="err">Vault unavailable: ${esc(data.reason)}</span>`;
+    $("connTable").hidden = true;
+    return;
+  }
+  st.textContent = data.entries.length
+    ? `secret backend: ${data.backend}`
+    : `No connections yet (secret backend: ${data.backend}). Add one below.`;
+  $("connTable").hidden = !data.entries.length;
+  $("connRows").innerHTML = data.entries.map((e) => `
+    <tr data-name="${esc(e.name)}">
+      <td><b>${esc(e.name)}</b></td>
+      <td><span class="kind-badge">${KIND_LABELS[e.kind]?.badge || esc(e.kind)}</span></td>
+      <td>${esc(e.portal.replace(/^https?:\/\//, ""))}</td>
+      <td>${esc(e.username) || "<span class='hint'>—</span>"}</td>
+      <td>${esc(e.updated.slice(0, 10))}</td>
+      <td class="actions">
+        <button type="button" class="mini ghost" data-act="test">Test</button>
+        <button type="button" class="mini ghost" data-act="edit">Edit</button>
+        <button type="button" class="mini danger" data-act="delete">Delete</button>
+        <div class="teststat" data-stat></div>
+      </td>
+    </tr>`).join("");
+}
+
+$("connRows").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-act]");
+  if (!btn) return;
+  const row = btn.closest("tr");
+  const name = row.dataset.name;
+  const stat = row.querySelector("[data-stat]");
+
+  if (btn.dataset.act === "test") {
+    stat.innerHTML = "testing…";
+    const resp = await api("/api/vault/test", { name });
+    const data = await resp.json();
+    stat.innerHTML = resp.ok ? `<span class="ok">✓ ${esc(data.summary)}</span>`
+                             : `<span class="err">✗ ${esc(data.error)}</span>`;
+  } else if (btn.dataset.act === "edit") {
+    const entries = (await (await api("/api/vault")).json()).entries;
+    const entry = entries.find((x) => x.name === name);
+    if (!entry) return;
+    editing = name;
+    $("formTitle").textContent = `Edit connection — ${name}`;
+    $("cName").value = entry.name; $("cName").disabled = true;
+    $("cKind").value = entry.kind; syncKindLabels();
+    $("cPortal").value = entry.portal;
+    $("cIdentity").value = entry.username;
+    $("cSecret").value = "";
+    $("cSecret").placeholder = "leave blank to keep current secret";
+    $("cCancel").hidden = false;
+    $("connMsg").textContent = "";
+  } else if (btn.dataset.act === "delete") {
+    if (btn.textContent !== "Sure?") { btn.textContent = "Sure?"; return; }
+    const resp = await api("/api/vault/delete", { name });
+    if (!resp.ok) stat.innerHTML = `<span class="err">${esc((await resp.json()).error)}</span>`;
+    else loadVault();
+  }
+});
+
+function resetForm() {
+  editing = null;
+  $("formTitle").textContent = "Add connection";
+  $("cName").value = ""; $("cName").disabled = false;
+  $("cIdentity").value = ""; $("cSecret").value = "";
+  $("cSecret").placeholder = "";
+  $("cPortal").value = "https://www.arcgis.com";
+  $("cCancel").hidden = true;
+  $("connMsg").textContent = "";
+}
+$("cCancel").addEventListener("click", resetForm);
+
+$("cSave").addEventListener("click", async () => {
+  const body = {
+    name: $("cName").value.trim(),
+    kind: $("cKind").value,
+    portal: $("cPortal").value.trim(),
+    username: $("cIdentity").value.trim(),
+    secret: $("cSecret").value,  // blank on edit = keep current
+  };
+  if (!body.name) { $("connMsg").innerHTML = '<span class="err">Name is required.</span>'; return; }
+  if (!editing && !body.secret) {
+    $("connMsg").innerHTML = '<span class="err">Secret is required for a new connection.</span>';
+    return;
+  }
+  const resp = await api("/api/vault", body);
+  const data = await resp.json();
+  if (!resp.ok) { $("connMsg").innerHTML = `<span class="err">${esc(data.error)}</span>`; return; }
+  resetForm();
+  $("connMsg").innerHTML = '<span class="ok">Saved.</span>';
+  loadVault();
 });
 </script>
 </body>

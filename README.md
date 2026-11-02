@@ -51,6 +51,11 @@ makes your sign-off informed — it does not make it unnecessary.
    http://localhost:8765 — a zero-dependency local web UI. Load a staged GeoJSON,
    tune seed/target/rotation/policies/blocklist, forge, and see before/after
    previews, join-safe faked attributes, and the leak-audit report live.
+   The **Connections** menu manages ArcGIS Online / Portal credentials
+   (sign-in, OAuth app, API key) in a local vault: metadata in
+   `~/.demoforge/vault.json`, secrets DPAPI-encrypted per-user on Windows
+   (OS keyring elsewhere via `pip install keyring`), never shown again after
+   save, testable against the portal with one click.
 3. **Forge for real:** the same config drives the pipeline over the full dataset;
    output ships only after the audit report is signed off item by item.
 
