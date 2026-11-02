@@ -35,7 +35,7 @@ from demoforge import ago, hosted  # noqa: E402
 from demoforge.audit import to_markdown  # noqa: E402
 from demoforge.fake import FieldPolicy  # noqa: E402
 from demoforge.pipeline import forge_geojson  # noqa: E402
-from demoforge.staging import suggest_policy  # noqa: E402
+from demoforge.staging import suggest_policies  # noqa: E402
 from demoforge.vault import Vault, VaultError, default_backend  # noqa: E402
 
 HOST, PORT = "127.0.0.1", 8765
@@ -198,11 +198,13 @@ class Handler(BaseHTTPRequestHandler):
         name, fc = hosted.fetch_layer_geojson(payload["url"], token)
         fields = sorted({k for feat in fc["features"]
                          for k in (feat.get("properties") or {})})
+        geom = next((f["geometry"] for f in fc["features"] if f.get("geometry")), None)
+        geometry_type = geom.get("type", "") if geom else ""
         self._json(200, {
             "name": name,
             "feature_count": len(fc["features"]),
             "geojson": fc,
-            "policies": [suggest_policy(f) for f in fields],
+            "policies": suggest_policies(fields, geometry_type=geometry_type),
         })
 
     def log_message(self, fmt: str, *args) -> None:
