@@ -9,3 +9,8 @@ build/
 out/
 .venv/
 .env
+
+# credential vault must never land in a repo, even with DEMOFORGE_HOME
+# pointed inside the project
+.demoforge/
+vault.json
