@@ -59,6 +59,21 @@ makes your sign-off informed — it does not make it unnecessary.
 3. **Forge for real:** the same config drives the pipeline over the full dataset;
    output ships only after the audit report is signed off item by item.
 
+## Credential storage
+
+The vault is local-only by design: no cloud component, no sync, no telemetry.
+The only network traffic a credential ever causes is the HTTPS token request to
+the portal you configured. `~/.demoforge/vault.json` holds metadata only — the
+secret itself is DPAPI-encrypted to your Windows account (useless to other
+users or copied off-machine), or lives in the OS keyring elsewhere. The
+workbench never displays a secret after save, never logs one, and its localhost
+API rejects cross-site requests.
+
+The honest limit, shared with Windows Credential Manager and every browser
+password store: a process running *as you* can decrypt what was encrypted *to
+you*. If your threat model needs more than that, a passphrase-derived key is
+the upgrade path — at the cost of a prompt every session.
+
 ## Status
 
 v1 core (this repo, pure Python, CI-tested): relocation planner, deterministic
