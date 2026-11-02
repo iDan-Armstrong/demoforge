@@ -18,6 +18,7 @@
   nav button.active { background:var(--panel); color:var(--fg);
                       border:1px solid var(--border); }
   main { display:grid; grid-template-columns: 420px 1fr; gap:16px; padding:16px 22px; }
+  main[hidden] { display:none; }  /* author styles beat the UA's [hidden] rule */
   main.single { grid-template-columns: minmax(420px, 760px); justify-content:center; }
   @media (max-width: 900px) { main, main.single { grid-template-columns: 1fr; } }
   .card { background:var(--panel); border:1px solid var(--border); border-radius:10px;
