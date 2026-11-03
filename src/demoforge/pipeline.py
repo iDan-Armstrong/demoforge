@@ -2,7 +2,7 @@
 
 GeoJSON is the dev-time format: the arcpy adapter reads feature classes
 into the same shapes, so everything proven here holds in Pro. The order is
-deliberate — relocate, then fake, then audit — because the audit must see
+deliberate (relocate, then fake, then audit) because the audit must see
 the *output* (what will actually ship), not the input.
 """
 

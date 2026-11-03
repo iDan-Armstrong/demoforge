@@ -73,6 +73,6 @@ def write_feature_class(
 # TODO v1:
 # - export_lyrx(project, layer) -> path (arcpy.mp SaveACopy)
 # - carry attribute domains: arcpy.da.ListDomains + CreateDomain/AddCodedValue
-# - metadata scrub: arcpy.metadata.Metadata — feed title/summary/credits
+# - metadata scrub: arcpy.metadata.Metadata; feed title/summary/credits
 #   through demoforge.audit before writing
 # - drop attachments by default; opt-in passthrough with audit warning

@@ -1,12 +1,12 @@
-"""ArcGIS Online / Portal token plumbing — stdlib only, no arcgis package.
+"""ArcGIS Online / Portal token plumbing (stdlib only, no arcgis package).
 
 Three ways in, matching the vault's entry kinds:
 
-* ``generate_token``  — agol-user: username/password against
+* ``generate_token`` (agol-user): username/password against
   ``/sharing/rest/generateToken`` (works on AGO and on-prem Portal).
-* ``oauth_token``     — agol-oauth: client-credentials flow against
+* ``oauth_token`` (agol-oauth): client-credentials flow against
   ``/sharing/rest/oauth2/token`` for a registered application.
-* ``validate_api_key`` — api-key: proves the key answers on
+* ``validate_api_key`` (api-key): proves the key answers on
   ``/sharing/rest/portals/self``.
 
 Each returns a small dict and raises :class:`AgoError` with the portal's
@@ -52,7 +52,7 @@ def _post(url: str, params: dict) -> dict:
     if err:
         details = "; ".join(err.get("details") or [])
         msg = err.get("message", "unknown portal error")
-        raise AgoError(f"{msg}{' — ' + details if details else ''}")
+        raise AgoError(f"{msg}{': ' + details if details else ''}")
     return doc
 
 
@@ -139,7 +139,7 @@ def test_connection(kind: str, portal: str, identity: str, secret: str) -> dict:
 
 
 # --------------------------------------------------------------------------
-# Content browsing — what a connection can reach
+# Content browsing: what a connection can reach
 # --------------------------------------------------------------------------
 
 # the item types worth staging; others (web maps, apps, notebooks) are noise
@@ -161,8 +161,8 @@ def _norm_item(it: dict) -> dict:
     }
 
 
-# the service types a "layer services only" filter keeps — used both to flag
-# items and to narrow the server-side search query.
+# the service types a "layer services only" filter keeps. They are used both
+# to flag items and to narrow the server-side search query.
 SERVICE_TYPES = ("Feature Service", "Map Service", "Image Service",
                  "Vector Tile Service", "WFS", "Feature Collection")
 
@@ -184,7 +184,7 @@ def _search_page(portal: str, token: str, query: str,
 
 
 def list_user_items(portal: str, token: str, username: str) -> list[dict]:
-    """All of the user's items (first page) — kept for callers that want a list."""
+    """All of the user's items (first page), kept for callers that want a list."""
     return _search_page(portal, token, f"owner:{username}")["items"]
 
 

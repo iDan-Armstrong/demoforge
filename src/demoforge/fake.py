@@ -3,8 +3,8 @@
 Determinism is the whole game. If parcel P-1042 appears in three feature
 classes and a related table, every occurrence must map to the *same* fake
 id or every join in the project silently breaks. So fakes are derived from
-HMAC(seed, value) — stable within a run, unlinkable to the original
-without the seed, and different across projects when the seed changes.
+HMAC(seed, value), which makes them stable within a run, unlinkable to the
+original without the seed, and different across projects when the seed changes.
 
 Keep the seed private: it is the only bridge back to the real values.
 """
@@ -69,7 +69,7 @@ class Faker:
 
     def id_pattern(self, value: str) -> str:
         """Replace digits with digits and letters with letters, preserving
-        format: 'MH-1042a' -> 'MH-' stays if literal? No — every letter and
+        format: 'MH-1042a' -> 'MH-' stays if literal? No. Every letter and
         digit is replaced; punctuation and casing structure survive, so
         downstream format validators still pass."""
         d = _digest(self._seed, "id:" + value)
@@ -108,7 +108,7 @@ def apply_policies(
     faker: Faker,
 ) -> list[dict]:
     """Return new records with policies applied; unlisted fields are KEPT,
-    which is why the audit step exists — keeping is the dangerous default
+    which is why the audit step exists: keeping is the dangerous default,
     and the audit is what makes it safe."""
     by_field = {p.field: p for p in policies}
     out = []

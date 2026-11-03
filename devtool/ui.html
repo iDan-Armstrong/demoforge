@@ -91,7 +91,7 @@
 <body>
 <header>
   <h1>demoforge</h1>
-  <span class="sub">relocate · fake · audit — local dev harness · ⟳ auto-reload on</span>
+  <span class="sub">relocate · fake · audit: local dev harness · ⟳ auto-reload on</span>
   <nav>
     <button type="button" data-view="workbench" class="active">Workbench</button>
     <button type="button" data-view="connections">Connections</button>
@@ -112,7 +112,7 @@
     </div>
     <div class="card">
       <h2>Forge config</h2>
-      <label>Seed (keep it private — it's the bridge back to real values)</label>
+      <label>Seed (keep it private; it's the bridge back to real values)</label>
       <input type="text" id="seed" value="change-me" />
       <div class="row">
         <div><label>Target bounds (minx,miny,maxx,maxy)</label>
@@ -120,7 +120,7 @@
         <div><label>Rotation °</label><input type="text" id="rotation" value="15" /></div>
       </div>
       <label>Scramble shape <span id="scrambleVal" class="hint">0%</span>
-        <span class="hint">— distorts proportions so the outline stops matching (topology-safe)</span></label>
+        <span class="hint">(distorts proportions so the outline stops matching; topology-safe)</span></label>
       <input type="range" id="scramble" min="0" max="100" value="0" step="5"
              style="width:100%" />
       <label>Field policies (JSON: field → keep | drop | fake:person |
@@ -133,7 +133,7 @@
       <textarea id="blocklist" rows="3" spellcheck="false"></textarea>
       <button type="button" id="run">Forge it</button>
       <div class="hint">Everything runs locally against the installed demoforge
-        package — edit the source, re-run, see the change.</div>
+        package: edit the source, re-run, see the change.</div>
     </div>
   </section>
   <section>
@@ -176,7 +176,7 @@
         <tbody id="connRows"></tbody>
       </table>
       <div class="hint" style="margin-top:8px">Secrets are stored once and never
-        shown again — the list and this page only ever see metadata. On Windows
+        shown again; the list and this page only ever see metadata. On Windows
         they're encrypted to your user account with DPAPI; elsewhere they live in
         the OS keyring.</div>
     </div>
@@ -260,7 +260,7 @@ async function saveForged() {
     if (note) { note.textContent = "saved ✓"; setTimeout(() => (note.textContent = ""), 2500); }
   } catch (err) {
     if (err && err.name === "AbortError") return;  // user cancelled the dialog
-    // picker failed — fall back to a normal download
+    // picker failed, so fall back to a normal download
     const a = $("download");
     a.href = URL.createObjectURL(blob); a.download = lastForged.name;
     a.hidden = false; a.click();
@@ -368,7 +368,7 @@ $("run").addEventListener("click", async () => {
     ? data.findings.map((f) =>
         `<div class="finding"><b>${esc(f.record)}</b> · ${esc(f.field)} · [${esc(f.kind)}] ${
           esc(f.excerpt)}</div>`).join("")
-    : '<div class="ok-banner">CLEAN — no findings. Still read the output with human eyes.</div>';
+    : '<div class="ok-banner">CLEAN: no findings. Still read the output with human eyes.</div>';
 });
 
 /* ---------------- connections ---------------- */
@@ -405,7 +405,7 @@ async function loadVault() {
       <td><b>${esc(e.name)}</b></td>
       <td><span class="kind-badge">${KIND_LABELS[e.kind]?.badge || esc(e.kind)}</span></td>
       <td>${esc(e.portal.replace(/^https?:\/\//, ""))}</td>
-      <td>${esc(e.username) || "<span class='hint'>—</span>"}</td>
+      <td>${esc(e.username) || "<span class='hint'>(none)</span>"}</td>
       <td>${esc(e.updated.slice(0, 10))}</td>
       <td class="actions">
         <button type="button" class="mini ghost" data-act="browse">Browse</button>
@@ -435,7 +435,7 @@ $("connRows").addEventListener("click", async (e) => {
     const entry = entries.find((x) => x.name === name);
     if (!entry) return;
     editing = name;
-    $("formTitle").textContent = `Edit connection — ${name}`;
+    $("formTitle").textContent = `Edit connection: ${name}`;
     $("cName").value = entry.name; $("cName").disabled = true;
     $("cKind").value = entry.kind; syncKindLabels();
     $("cPortal").value = entry.portal;
@@ -465,7 +465,7 @@ function browseConnection(name) {
   browseStart = 1;
   $("browseSearch").value = "";
   $("browseCard").hidden = false;
-  $("browseTitle").textContent = `Contents — ${name}`;
+  $("browseTitle").textContent = `Contents: ${name}`;
   $("browseCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
   fetchBrowsePage();
 }
@@ -581,8 +581,8 @@ async function loadLayerIntoWorkbench(url, btn) {
     document.querySelector('nav button[data-view="workbench"]').click();
     const b = $("loadBanner");
     b.hidden = false;
-    b.innerHTML = `Loaded <b>${esc(data.name)}</b> — ${data.feature_count.toLocaleString()} `
-      + `feature${data.feature_count === 1 ? "" : "s"}. Policies drafted below; `
+    b.innerHTML = `Loaded <b>${esc(data.name)}</b> (${data.feature_count.toLocaleString()} `
+      + `feature${data.feature_count === 1 ? "" : "s"}). Policies drafted below; `
       + `set a private <b>seed</b> and <b>target bounds</b>, review the policies, then <b>Forge it</b>.`;
     window.scrollTo({ top: 0, behavior: "smooth" });
   } finally {
@@ -635,7 +635,7 @@ $("cSave").addEventListener("click", async () => {
       const b = (await r.json()).boot;
       if (boot === null) boot = b;
       else if (b !== boot) location.reload();
-    } catch { /* server mid-restart — ignore and keep polling */ }
+    } catch { /* server mid-restart; ignore and keep polling */ }
   }, 1500);
 })();
 </script>

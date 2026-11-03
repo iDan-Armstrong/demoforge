@@ -55,7 +55,7 @@ def audit_records(
             if any(h in lowered for h in SENSITIVE_FIELD_HINTS):
                 findings.append(AuditFinding(
                     "schema", field, "field_name",
-                    f"field name {field!r} suggests sensitive content — "
+                    f"field name {field!r} suggests sensitive content; "
                     "confirm it has a policy"))
 
     patterns = [
@@ -83,9 +83,9 @@ def to_markdown(findings: list[AuditFinding]) -> str:
     lines = [
         "# demoforge leak audit",
         "",
-        ("**CLEAN** — no findings. Still read the output with human eyes "
+        ("**CLEAN**: no findings. Still read the output with human eyes "
          "before sharing." if not findings else
-         f"**{len(findings)} finding(s)** — every one needs a human decision "
+         f"**{len(findings)} finding(s)**: every one needs a human decision "
          "before this output ships."),
         "",
     ]

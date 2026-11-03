@@ -41,7 +41,7 @@ def test_place_layer_names_are_places_not_people():
 
 
 def test_owner_layer_names_stay_people():
-    # owner/parcel context vetoes the place reading — NAME is a person here
+    # owner/parcel context vetoes the place reading; NAME is a person here
     pol = policy_actions(["NAME", "OWNER", "SITE_ADDRESS", "APN"],
                          geometry_type="Polygon")
     assert pol["NAME"] == "fake:person"

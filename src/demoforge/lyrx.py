@@ -1,7 +1,7 @@
 """Symbology carryover: rewrite .lyrx layer files to point at forged data.
 
 A .lyrx is CIM JSON. Renderers, label classes, popups and field aliases are
-keyed to *field names* — so as long as demoforge keeps the schema (and it
+keyed to *field names*, so as long as demoforge keeps the schema (and it
 does; faking changes values, not fields), carrying the cartography over is
 a matter of rewriting dataset paths. Pure JSON work: no arcpy, fully
 CI-testable.

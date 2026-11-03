@@ -1,7 +1,7 @@
 """Relocation: one affine transform moves the whole project to a fictional AOI.
 
 Why affine and not per-feature jitter: an affine transform (translate,
-rotate, scale, shear) preserves *every* internal spatial relationship —
+rotate, scale, shear) preserves *every* internal spatial relationship:
 shared parcel boundaries stay shared, pipes stay connected to manholes,
 containment and adjacency survive untouched. Per-vertex jitter destroys
 exactly the topology that makes GIS data coherent; v1 refuses to.
@@ -10,13 +10,13 @@ A pure similarity move (uniform scale + rotate) preserves the shape
 *exactly*, so a distinctive outline is still recognizable after
 relocating. ``scramble`` adds a seed-driven anisotropic scale + shear
 to defeat that: it stretches and skews the whole project so the shape no
-longer matches the original, while staying a single affine map — so
+longer matches the original, while staying a single affine map, so
 topology is still exact. It is deterministic in the seed (reproducible,
 reversible with the seed) but not a guessable function of the setting.
-The trade-off is honest: higher scramble reads as less geometrically
+The trade-off: higher scramble reads as less geometrically
 natural (circles become ellipses, squares become parallelograms), and
 because it is a global linear map it defends against casual
-identification, not a determined analyst with normalization tools —
+identification, not a determined analyst with normalization tools;
 non-linear topology-aware morphing is the v2 direction.
 
 Pure math over (x, y) tuples / nested coordinate arrays, so the same

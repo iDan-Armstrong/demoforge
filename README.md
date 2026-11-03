@@ -1,4 +1,4 @@
-# demoforge — turn proprietary GIS projects into shareable demos
+# demoforge: turn proprietary GIS projects into shareable demos
 
 ![CI](https://github.com/iDan-Armstrong/demoforge/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -6,19 +6,19 @@
 
 Every consulting GIS career has the same problem: decades of good work, none of it
 shareable. demoforge takes an existing geodatabase project and forges a demo-safe
-version — **relocated** to a fictional place, **anonymized** in its attributes,
-**audited** for leaks, with the **symbology and labeling carried over** — without
-recreating layers and datasets by hand.
+version: **relocated** to a fictional place, **anonymized** in its attributes,
+**audited** for leaks, and with the **symbology and labeling carried over**, all
+without recreating layers and datasets by hand.
 
 ```
 relocate  →  one affine transform (translate/rotate/scale) moves the whole project
-             to a fictional AOI. Affine on purpose: every spatial relationship —
-             shared parcel edges, pipe-to-manhole connectivity, containment —
+             to a fictional AOI. Affine on purpose: every spatial relationship
+             (shared parcel edges, pipe-to-manhole connectivity, containment)
              survives exactly. Per-vertex jitter breaks topology; demoforge won't.
              A pure move keeps the *shape* exact, so a distinctive outline is still
-             recognizable — so `scramble` (0–100%, seed-driven) adds anisotropic
+             recognizable. To counter that, `scramble` (0–100%, seed-driven) adds anisotropic
              scale + shear to distort proportions until the shape no longer matches,
-             staying a single affine map so topology is still exact. Honest limit:
+             staying a single affine map so topology is still exact. Limit:
              it's a global linear map, so it defeats casual identification, not a
              determined analyst; non-linear morphing is the v2 direction.
 
@@ -35,24 +35,24 @@ audit     →  the trust feature. Finds what scrubbing did NOT handle: your
 
 carry     →  .lyrx layer files are CIM JSON keyed to field names; demoforge keeps
              the schema, so cartography ports by rewriting dataset paths. Pure
-             JSON — tested in CI without an ArcGIS license.
+             JSON, tested in CI without an ArcGIS license.
 ```
 
-## The honest caveat
+## The caveat
 
 **Anonymized is not the same as non-proprietary.** demoforge removes
 *identifiability*; your contract decides *ownership*. Schema design, data models,
 and symbology standards can themselves be client work product. The audit report
-makes your sign-off informed — it does not make it unnecessary.
+makes your sign-off informed; it does not make it unnecessary.
 
 ## Workflow
 
 1. **Extract (ArcGIS Pro):** in the Catalog pane, right-click **Toolboxes →
-   Add Toolbox** and pick `toolbox/DemoForgeExtract.pyt` from your clone — no
-   install needed. The toolbox adds its own `src/` folder to the path when it
+   Add Toolbox** and pick `toolbox/DemoForgeExtract.pyt` from your clone; no
+   install is needed. The toolbox adds its own `src/` folder to the path when it
    loads, so it runs in the stock `arcgispro-py3` environment (if you'd rather
    `pip install -e .` into a cloned environment, it uses that instead). Run
-   *Extract To Demoforge* — select map layers (local feature classes or hosted
+   *Extract To Demoforge* to select map layers (local feature classes or hosted
    feature layers), sweep a whole geodatabase, and/or paste hosted layer URLs
    authenticated by a saved vault connection (no reliance on the Pro session's
    sign-in). It stages one GeoJSON per
@@ -60,7 +60,7 @@ makes your sign-off informed — it does not make it unnecessary.
    (owner-ish fields → fake person, id-ish → format-preserving fake, system
    fields → drop). Suggestions are drafts; you review every one.
 2. **Develop & test (local workbench):** `python devtool/server.py` →
-   http://localhost:8765 — a zero-dependency local web UI. Load a staged GeoJSON,
+   http://localhost:8765, a zero-dependency local web UI. Load a staged GeoJSON,
    tune seed/target/rotation/policies/blocklist, forge, and see before/after
    previews, join-safe faked attributes, and the leak-audit report live.
    The **Connections** menu manages ArcGIS Online / Portal credentials
@@ -75,16 +75,16 @@ makes your sign-off informed — it does not make it unnecessary.
 
 The vault is local-only by design: no cloud component, no sync, no telemetry.
 The only network traffic a credential ever causes is the HTTPS token request to
-the portal you configured. `~/.demoforge/vault.json` holds metadata only — the
+the portal you configured. `~/.demoforge/vault.json` holds metadata only; the
 secret itself is DPAPI-encrypted to your Windows account (useless to other
 users or copied off-machine), or lives in the OS keyring elsewhere. The
 workbench never displays a secret after save, never logs one, and its localhost
 API rejects cross-site requests.
 
-The honest limit, shared with Windows Credential Manager and every browser
+The limit, shared with Windows Credential Manager and every browser
 password store: a process running *as you* can decrypt what was encrypted *to
 you*. If your threat model needs more than that, a passphrase-derived key is
-the upgrade path — at the cost of a prompt every session.
+the upgrade path, at the cost of a prompt every session.
 
 ## Status
 

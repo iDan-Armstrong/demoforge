@@ -1,11 +1,11 @@
-"""Fetch hosted feature layers over the Esri REST API — stdlib only.
+"""Fetch hosted feature layers over the Esri REST API (stdlib only).
 
 Pulls a whole layer (``.../FeatureServer/<idx>``) as a GeoJSON
 FeatureCollection, paging with ``resultOffset`` at the server's own
-``maxRecordCount``, authenticated by whatever token the caller supplies
-(see :func:`demoforge.ago.get_token` — or none, for public layers).
+``maxRecordCount``, authenticated by whatever token the caller supplies, or by none for public
+layers (see :func:`demoforge.ago.get_token`).
 
-Honest limitation, stated rather than papered over: this asks the server
+Known limitation: this asks the server
 for ``f=geojson``, which ArcGIS Online and recent Portals support. A
 server that can't speak GeoJSON gets a clear error, not a half-right
 conversion.
@@ -41,7 +41,7 @@ def fetch_layer_geojson(
 ) -> tuple[str, dict]:
     """Pull every feature. Returns (layer_name, FeatureCollection).
 
-    ``on_page(fetched_so_far)`` is called after each page — the toolbox
+    ``on_page(fetched_so_far)`` is called after each page; the toolbox
     uses it for progress messages.
     """
     url = layer_url.strip().rstrip("/")
@@ -49,7 +49,7 @@ def fetch_layer_geojson(
     if not info["supports_geojson"]:
         raise AgoError(
             f"layer {info['name']!r} does not offer GeoJSON "
-            "(supportedQueryFormats) — extract it via the map in ArcGIS Pro instead"
+            "(supportedQueryFormats); extract it via the map in ArcGIS Pro instead"
         )
     page = min(info["max_record_count"], _PAGE_CAP)
 

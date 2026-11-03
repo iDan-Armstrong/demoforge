@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Demoforge Extract — ArcGIS Pro Python Toolbox (the on-ramp).
+"""Demoforge Extract: ArcGIS Pro Python Toolbox (the on-ramp).
 
 Selects layers from the map (local feature classes OR hosted feature
-layers — anything a SearchCursor can read), sweeps an entire geodatabase,
-and/or pulls hosted layers straight from their REST URLs — authenticated
+layers: anything a SearchCursor can read), sweeps an entire geodatabase,
+and/or pulls hosted layers straight from their REST URLs, authenticated
 by a connection saved in the local demoforge vault (workbench →
 Connections), independent of the Pro session's sign-in. Everything stages
 the same way: one GeoJSON per layer plus a drafted demoforge_job.json
@@ -22,8 +22,8 @@ import arcpy
 
 # Zero-install import: use a pip-installed demoforge if there is one, else
 # fall back to the src/ folder shipped next to this toolbox in the repo
-# (one level up). So a new user just adds this .pyt in Catalog and runs it —
-# no conda clone, no pip, no Pro restart — and it still honors a real install.
+# (one level up). So a new user just adds this .pyt in Catalog and runs it
+# (no conda clone, no pip, no Pro restart), and it still honors a real install.
 try:
     import demoforge  # noqa: F401
 except ImportError:
@@ -136,7 +136,7 @@ class ExtractToDemoforge:
                 except (VaultError, ago.AgoError) as exc:
                     raise arcpy.ExecuteError(f"vault connection failed: {exc}")
             else:
-                arcpy.AddMessage("no vault connection given — trying public access")
+                arcpy.AddMessage("no vault connection given; trying public access")
             for url in urls:
                 try:
                     name, fc = hosted.fetch_layer_geojson(
@@ -190,5 +190,5 @@ class ExtractToDemoforge:
         arcpy.AddMessage(f"job config drafted: {job_path}")
         arcpy.AddWarning(
             "Review every suggested policy and fill in the blocklist and "
-            "seed before forging — suggestions are drafts, not decisions."
+            "seed before forging. Suggestions are drafts, not decisions."
         )

@@ -8,11 +8,11 @@ target bounds. The workbench loads the same files; the forge runs from the
 same config. One contract, three consumers.
 
 Policy drafting is deliberately conservative: it *suggests*, flags why,
-and defaults anything suspicious to a fake rather than a keep — the human
+and defaults anything suspicious to a fake rather than a keep; the human
 can always relax it. It is also context-aware: a bare ``NAME`` means a
 *place* in a boundary layer but a *person* in a parcel/owner layer, and
 geographic identifiers (GNIS, FIPS, GEOID) are anonymized, not kept.
-Pure Python, fully tested, no AI — HMAC + rules all the way down.
+Pure Python, fully tested, no AI: HMAC + rules all the way down.
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ def _is_place_layer(lowered_fields: set[str], geometry_type: str = "") -> bool:
 
     Owner/parcel signals veto it outright. Otherwise census/USGS place
     fields confirm it; failing that, a polygon area carrying a name but no
-    owner or address signals is treated as a place/zone — the geometry is
+    owner or address signals is treated as a place/zone. The geometry is
     the tiebreaker, since a person never *is* a geographic area.
     """
     if _any_hint(lowered_fields, _OWNER_HINTS):

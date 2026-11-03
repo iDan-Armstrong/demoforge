@@ -1,10 +1,10 @@
-"""demoforge dev harness — a local, zero-dependency web workbench.
+"""demoforge dev harness: a local, zero-dependency web workbench.
 
     python devtool/server.py            # then open http://localhost:8765
     python devtool/server.py --reload   # auto-restart + auto-refresh on change
 
 Menu: Workbench (forge GeoJSON, see previews and the leak audit) and
-Connections (ArcGIS Online credentials in the local vault — DPAPI-encrypted
+Connections (ArcGIS Online credentials in the local vault; DPAPI-encrypted
 on Windows, OS keyring elsewhere).
 
 Standard library only, bound to localhost on purpose. Because the server
@@ -16,7 +16,7 @@ browser are rejected even on localhost.
 --reload runs a tiny supervisor that re-launches the server whenever a
 source file changes (a local edit, or a ``git pull`` while it runs), and
 the page polls ``/api/alive`` so it reloads itself when the server comes
-back — no manual restart or hard-refresh.
+back, with no manual restart or hard-refresh.
 """
 
 from __future__ import annotations
@@ -194,7 +194,7 @@ class Handler(BaseHTTPRequestHandler):
                          "layers": layers})
 
     def _vault_fetch(self, payload: dict) -> None:
-        # pull a hosted layer straight into the workbench — no ArcGIS Pro.
+        # pull a hosted layer straight into the workbench (no ArcGIS Pro needed).
         _meta, token = self._token_for(payload["name"])
         name, fc = hosted.fetch_layer_geojson(payload["url"], token)
         fields = sorted({k for feat in fc["features"]
@@ -284,7 +284,7 @@ def _supervise() -> None:
                     print("  server stopped; exiting reload supervisor")
                     return
                 if _source_mtime() != last:
-                    print("  source changed — restarting server")
+                    print("  source changed; restarting server")
                     child.terminate()
                     try:
                         child.wait(timeout=5)

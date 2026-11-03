@@ -4,14 +4,14 @@ Design: a small metadata file (``~/.demoforge/vault.json``) that never
 contains a secret in the clear, plus a pluggable *secret backend* that
 holds the secret itself:
 
-* ``DpapiBackend`` (Windows, zero-dependency) — secrets are encrypted
+* ``DpapiBackend`` (Windows, zero-dependency): secrets are encrypted
   per-user with the Windows Data Protection API via ctypes and stored as
   a base64 blob inside the metadata file. Only the same Windows user on
   the same machine can decrypt them.
-* ``KeyringBackend`` (any OS with the optional ``keyring`` package) —
+* ``KeyringBackend`` (any OS with the optional ``keyring`` package):
   secrets live in the OS keychain; the metadata file holds only a
   reference.
-* ``MemoryBackend`` — tests only.
+* ``MemoryBackend``: tests only.
 
 The split follows the repo's boundary discipline: everything
 decision-shaped (file format, CRUD, "metadata never includes secrets")
